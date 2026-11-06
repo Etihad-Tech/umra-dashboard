@@ -31,3 +31,20 @@
 
 ## План: обновление в реальном времени
 Сборщик на сервере (Python, раз в 15–30 мин) читает три сайта, пишет JSON и шлёт уведомления в Telegram при изменении цен. Дашборд читает этот JSON вместо папки `data/`. Пока не сделано.
+
+## Ilova (PWA) sifatida o'rnatish
+Sayt oddiy ilova kabi ishlaydi: telefon yoki kompyuterga o'rnatiladi, o'z ikonkasi bor, oflayn ham ochiladi.
+
+**Boshqalar ishlatishi uchun (GitHub Pages, bepul):**
+1. Papkani GitHub'ga push qiling.
+2. Repo → Settings → Pages → Branch: `main`, papka `/ (root)` → Save.
+3. 1–2 daqiqadan so'ng havola chiqadi: `https://<login>.github.io/<repo>/`
+4. Shu havolani yuboring.
+
+**O'rnatish:**
+- iPhone: Safari → Share → «Add to Home Screen».
+- Android: Chrome → ⋮ → «Install app».
+- Kompyuter (Chrome/Edge): manzil qatoridagi «Install» tugmasi.
+
+Yangi versiya chiqarganda `sw.js` ichidagi `VERSION` ni o'zgartiring (masalan `umra-v2`) — foydalanuvchilarda ilova yangilanadi.
+Eslatma: `file://` orqali (ikki marta bosib) ochilganda ilova rejimi ishlamaydi — faqat http(s) havola orqali.
