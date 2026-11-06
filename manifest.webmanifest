@@ -1,0 +1,17 @@
+{
+  "name": "Umra narxlari — ETIHAD monitoring",
+  "short_name": "Umra narxlari",
+  "description": "ETIHAD, SAFO va MANDARIN umra paketlari narxlarini solishtirish",
+  "lang": "uz",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#050D0A",
+  "theme_color": "#0A3F31",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
