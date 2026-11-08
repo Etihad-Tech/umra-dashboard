@@ -1,0 +1,86 @@
+[
+ {
+  "id": 1,
+  "section": "Lux",
+  "date_out": "17.12",
+  "date_return": "27.12",
+  "days_label": "10 kun",
+  "price_2": 2490,
+  "price_3": 2390,
+  "price_4": 2290,
+  "is_sold_out": false,
+  "is_active": true
+ },
+ {
+  "id": 2,
+  "section": "Lux",
+  "date_out": "18.01.2027",
+  "date_return": "28.01.2027",
+  "days_label": "10 kun",
+  "price_2": "2,550 $",
+  "price_3": "2 450 $",
+  "price_4": "2,350 $",
+  "is_sold_out": false,
+  "is_active": true
+ },
+ {
+  "id": 3,
+  "section": "Komfort",
+  "date_out": "05.01",
+  "date_return": "15.01",
+  "days_label": "10 kun",
+  "price_2": 1590,
+  "price_3": 1490,
+  "price_4": 1390,
+  "is_sold_out": true,
+  "is_active": true
+ },
+ {
+  "id": 4,
+  "section": "Ekonom",
+  "date_out": "29.12",
+  "date_return": "08.01",
+  "days_label": "10 kun",
+  "price_2": 990,
+  "price_3": null,
+  "price_4": "",
+  "is_sold_out": false,
+  "is_active": true
+ },
+ {
+  "id": 5,
+  "section": "Ekonom",
+  "date_out": "29.12",
+  "date_return": "08.01",
+  "days_label": "10 kun",
+  "price_2": 1,
+  "price_3": 1,
+  "price_4": 1,
+  "is_sold_out": false,
+  "is_active": true
+ },
+ {
+  "id": 6,
+  "section": "",
+  "date_out": "01.02",
+  "date_return": "10.02",
+  "days_label": "10 kun",
+  "price_2": 1,
+  "price_3": 1,
+  "price_4": 1,
+  "is_sold_out": false,
+  "is_active": true
+ },
+ {
+  "id": 7,
+  "section": "Lux",
+  "date_out": "soon",
+  "date_return": "",
+  "days_label": "10 kun",
+  "price_2": 1,
+  "price_3": 1,
+  "price_4": 1,
+  "is_sold_out": false,
+  "is_active": true
+ }
+]

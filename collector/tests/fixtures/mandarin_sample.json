@@ -1,0 +1,497 @@
+{
+ "packets": [
+  {
+   "family": "FAJR-14",
+   "title": "FAJR-14",
+   "company": "TOSHKENT",
+   "category": "LUXE",
+   "airline": "HY",
+   "route_go": "TAS-JED",
+   "route_ret": "MED-TAS",
+   "date_start": "10.12.2026",
+   "date_end": null,
+   "date_key": "2026-12-10",
+   "days": 11,
+   "nights": 10,
+   "hotels": [
+    {
+     "city": "Makkah",
+     "name": "Hotel A",
+     "nights": 5,
+     "meal_type": "BB"
+    }
+   ],
+   "trains": [],
+   "services": [
+    "visa",
+    "insurance"
+   ],
+   "prices": [
+    {
+     "pax": 4,
+     "amount": "2,290 $"
+    },
+    {
+     "pax": 3,
+     "amount": "2,390 $"
+    },
+    {
+     "pax": 2,
+     "amount": "2,590 $"
+    },
+    {
+     "pax": 1,
+     "amount": "3,190 $"
+    }
+   ],
+   "extra_note": ""
+  },
+  {
+   "family": "FAJR-14",
+   "title": "FAJR-14",
+   "company": "TOSHKENT",
+   "category": "LUXE",
+   "airline": "HY",
+   "route_go": "TAS-JED",
+   "route_ret": "MED-TAS",
+   "date_start": "24.12.2026",
+   "date_end": null,
+   "date_key": "2026-12-24",
+   "days": 11,
+   "nights": 10,
+   "hotels": [
+    {
+     "city": "Makkah",
+     "name": "Hotel A",
+     "nights": 5,
+     "meal_type": "BB"
+    }
+   ],
+   "trains": [],
+   "services": [
+    "visa",
+    "insurance"
+   ],
+   "prices": [
+    {
+     "pax": 4,
+     "amount": "2,350 $"
+    },
+    {
+     "pax": 3,
+     "amount": "2,450 $"
+    },
+    {
+     "pax": 2,
+     "amount": "2,650 $"
+    },
+    {
+     "pax": 1,
+     "amount": "3,250 $"
+    }
+   ],
+   "extra_note": ""
+  },
+  {
+   "family": "HYATT-09",
+   "title": "HYATT-09",
+   "company": "TOSHKENT",
+   "category": "KOMFORT PLUS",
+   "airline": "HY",
+   "route_go": "TAS-JED",
+   "route_ret": "MED-TAS",
+   "date_start": "12.12.2026",
+   "date_end": null,
+   "date_key": "2026-12-12",
+   "days": 11,
+   "nights": 10,
+   "hotels": [
+    {
+     "city": "Makkah",
+     "name": "Hotel A",
+     "nights": 5,
+     "meal_type": "BB"
+    }
+   ],
+   "trains": [],
+   "services": [
+    "visa",
+    "insurance"
+   ],
+   "prices": [
+    {
+     "pax": 4,
+     "amount": "1,190 $"
+    },
+    {
+     "pax": 3,
+     "amount": "1,290 $"
+    },
+    {
+     "pax": 2,
+     "amount": "1,490 $"
+    },
+    {
+     "pax": 1,
+     "amount": "1,990 $"
+    }
+   ],
+   "extra_note": ""
+  },
+  {
+   "family": "SAFAR-7",
+   "title": "SAFAR-7",
+   "company": "TOSHKENT",
+   "category": "STANDART PLUS",
+   "airline": "HY",
+   "route_go": "TAS-JED",
+   "route_ret": "MED-TAS",
+   "date_start": "15.12.2026",
+   "date_end": null,
+   "date_key": "2026-12-15",
+   "days": 11,
+   "nights": 10,
+   "hotels": [
+    {
+     "city": "Makkah",
+     "name": "Hotel A",
+     "nights": 5,
+     "meal_type": "BB"
+    }
+   ],
+   "trains": [],
+   "services": [
+    "visa",
+    "insurance"
+   ],
+   "prices": [
+    {
+     "pax": 4,
+     "amount": "1,190 $"
+    },
+    {
+     "pax": 3,
+     "amount": "1,290 $"
+    },
+    {
+     "pax": 2,
+     "amount": "1,490 $"
+    },
+    {
+     "pax": 1,
+     "amount": "1,990 $"
+    }
+   ],
+   "extra_note": ""
+  },
+  {
+   "family": "ECO-10",
+   "title": "ECO-10",
+   "company": "TOSHKENT",
+   "category": "EKONOM",
+   "airline": "HY",
+   "route_go": "TAS-JED",
+   "route_ret": "MED-TAS",
+   "date_start": "18.12.2026",
+   "date_end": null,
+   "date_key": "2026-12-18",
+   "days": 11,
+   "nights": 10,
+   "hotels": [
+    {
+     "city": "Makkah",
+     "name": "Hotel A",
+     "nights": 5,
+     "meal_type": "BB"
+    }
+   ],
+   "trains": [],
+   "services": [
+    "visa",
+    "insurance"
+   ],
+   "prices": [
+    {
+     "pax": 4,
+     "amount": "890 $"
+    },
+    {
+     "pax": 3,
+     "amount": "950 $"
+    },
+    {
+     "pax": 2,
+     "amount": "1 050 $"
+    },
+    {
+     "pax": 1,
+     "amount": ""
+    }
+   ],
+   "extra_note": ""
+  },
+  {
+   "family": "NOCAT-1",
+   "title": "NOCAT-1",
+   "company": "TOSHKENT",
+   "category": "",
+   "airline": "HY",
+   "route_go": "TAS-JED",
+   "route_ret": "MED-TAS",
+   "date_start": "20.12.2026",
+   "date_end": null,
+   "date_key": "2026-12-20",
+   "days": 11,
+   "nights": 10,
+   "hotels": [
+    {
+     "city": "Makkah",
+     "name": "Hotel A",
+     "nights": 5,
+     "meal_type": "BB"
+    }
+   ],
+   "trains": [],
+   "services": [
+    "visa",
+    "insurance"
+   ],
+   "prices": [
+    {
+     "pax": 4,
+     "amount": "1,190 $"
+    },
+    {
+     "pax": 3,
+     "amount": "1,290 $"
+    },
+    {
+     "pax": 2,
+     "amount": "1,490 $"
+    },
+    {
+     "pax": 1,
+     "amount": "1,990 $"
+    }
+   ],
+   "extra_note": ""
+  },
+  {
+   "family": "NOPRICE-1",
+   "title": "NOPRICE-1",
+   "company": "TOSHKENT",
+   "category": "LUX",
+   "airline": "HY",
+   "route_go": "TAS-JED",
+   "route_ret": "MED-TAS",
+   "date_start": "22.12.2026",
+   "date_end": null,
+   "date_key": "2026-12-22",
+   "days": 11,
+   "nights": 10,
+   "hotels": [
+    {
+     "city": "Makkah",
+     "name": "Hotel A",
+     "nights": 5,
+     "meal_type": "BB"
+    }
+   ],
+   "trains": [],
+   "services": [
+    "visa",
+    "insurance"
+   ],
+   "prices": [],
+   "extra_note": ""
+  },
+  {
+   "family": "WEIRD-1",
+   "title": "WEIRD-1",
+   "company": "TOSHKENT",
+   "category": "NAMANGAN",
+   "airline": "HY",
+   "route_go": "TAS-JED",
+   "route_ret": "MED-TAS",
+   "date_start": "23.12.2026",
+   "date_end": null,
+   "date_key": "2026-12-23",
+   "days": 11,
+   "nights": 10,
+   "hotels": [
+    {
+     "city": "Makkah",
+     "name": "Hotel A",
+     "nights": 5,
+     "meal_type": "BB"
+    }
+   ],
+   "trains": [],
+   "services": [
+    "visa",
+    "insurance"
+   ],
+   "prices": [
+    {
+     "pax": 4,
+     "amount": "1,190 $"
+    },
+    {
+     "pax": 3,
+     "amount": "1,290 $"
+    },
+    {
+     "pax": 2,
+     "amount": "1,490 $"
+    },
+    {
+     "pax": 1,
+     "amount": "1,990 $"
+    }
+   ],
+   "extra_note": ""
+  },
+  {
+   "family": "FAJR-14",
+   "title": "FAJR-14",
+   "company": "NAMANGAN",
+   "category": "LUXE",
+   "airline": "HY",
+   "route_go": "TAS-JED",
+   "route_ret": "MED-TAS",
+   "date_start": "10.12.2026",
+   "date_end": null,
+   "date_key": "2026-12-10",
+   "days": 11,
+   "nights": 10,
+   "hotels": [
+    {
+     "city": "Makkah",
+     "name": "Hotel A",
+     "nights": 5,
+     "meal_type": "BB"
+    }
+   ],
+   "trains": [],
+   "services": [
+    "visa",
+    "insurance"
+   ],
+   "prices": [
+    {
+     "pax": 4,
+     "amount": "1,190 $"
+    },
+    {
+     "pax": 3,
+     "amount": "1,290 $"
+    },
+    {
+     "pax": 2,
+     "amount": "1,490 $"
+    },
+    {
+     "pax": 1,
+     "amount": "1,990 $"
+    }
+   ],
+   "extra_note": ""
+  },
+  {
+   "family": "URG-5",
+   "title": "URG-5",
+   "company": "URGANCH",
+   "category": "KOMFORT",
+   "airline": "HY",
+   "route_go": "TAS-JED",
+   "route_ret": "MED-TAS",
+   "date_start": "11.12.2026",
+   "date_end": null,
+   "date_key": "2026-12-11",
+   "days": 11,
+   "nights": 10,
+   "hotels": [
+    {
+     "city": "Makkah",
+     "name": "Hotel A",
+     "nights": 5,
+     "meal_type": "BB"
+    }
+   ],
+   "trains": [],
+   "services": [
+    "visa",
+    "insurance"
+   ],
+   "prices": [
+    {
+     "pax": 4,
+     "amount": "1,190 $"
+    },
+    {
+     "pax": 3,
+     "amount": "1,290 $"
+    },
+    {
+     "pax": 2,
+     "amount": "1,490 $"
+    },
+    {
+     "pax": 1,
+     "amount": "1,990 $"
+    }
+   ],
+   "extra_note": ""
+  },
+  {
+   "family": "FAJR-14",
+   "title": "FAJR-14",
+   "company": "TOSHKENT",
+   "category": "LUXE",
+   "airline": "HY",
+   "route_go": "TAS-JED",
+   "route_ret": "MED-TAS",
+   "date_start": "10.12.2026",
+   "date_end": null,
+   "date_key": "2026-12-10",
+   "days": 11,
+   "nights": 10,
+   "hotels": [
+    {
+     "city": "Makkah",
+     "name": "Hotel A",
+     "nights": 5,
+     "meal_type": "BB"
+    }
+   ],
+   "trains": [],
+   "services": [
+    "visa",
+    "insurance"
+   ],
+   "prices": [
+    {
+     "pax": 4,
+     "amount": "1,190 $"
+    },
+    {
+     "pax": 3,
+     "amount": "1,290 $"
+    },
+    {
+     "pax": 2,
+     "amount": "1,490 $"
+    },
+    {
+     "pax": 1,
+     "amount": "1,990 $"
+    }
+   ],
+   "extra_note": ""
+  },
+  {
+   "title": "broken packet without family or date",
+   "company": "TOSHKENT"
+  }
+ ]
+}
