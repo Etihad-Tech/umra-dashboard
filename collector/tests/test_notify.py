@@ -230,3 +230,13 @@ class Config(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ManualConflictText(unittest.TestCase):
+    def test_shows_both_prices(self):
+        from collector.notify import format_event
+        ev = {"type": "manual_conflict", "package_id": 1, "departure_id": 1,
+              "old": {"pax": 4, "price_usd": 1000}, "new": {"pax": 4, "price_usd": 1090}}
+        txt = format_event(ev, {"packages": {}, "departures": {}, "our_prices": {}})
+        self.assertIn("$1,000", txt)
+        self.assertIn("$1,090", txt)

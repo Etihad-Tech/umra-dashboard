@@ -7,7 +7,7 @@ Rules (TASK sections 5, 8, 9):
   * NULL = "no data" (never 0); a first-time NULL is not worth a row;
   * a departure missing from the feed gets missing_runs+1, and is deactivated ("removed") after 2 runs in a row;
   * category is normalised through the category_map table; unknown -> tier NULL (shown in unmapped_categories);
-  * events (price_up/down, new_package, new_departure, sold_out, back_on_sale, removed) are recorded for the notifier.
+  * events (price_up/down, new_package, new_departure, sold_out, back_on_sale, removed, manual_conflict) are recorded for the notifier.
     The very first successful run of a source is a "seed": it fills the database but creates NO events,
     otherwise the first run would announce every package as new.
 """
@@ -148,7 +148,13 @@ def sync_packets(store, source: dict, run_id: int, packets: list[Packet], city: 
                     continue            # never seen, still no price: nothing to record
             elif last == price:
                 continue
-            elif last is not None and price is not None:
+            manual = state.manual_prices.get((dep_id, pax))
+            if manual is not None and price is not None and price != manual:
+                # a person entered a price; the source now says something different: show both, never overwrite silently
+                price_events.append(event("manual_conflict", pkg_id, dep_id,
+                                          old={"pax": pax, "price_usd": manual},
+                                          new={"pax": pax, "price_usd": price}))
+            if last != "none" and last is not None and price is not None:
                 price_events.append(event("price_down" if price < last else "price_up", pkg_id, dep_id,
                                           old={"pax": pax, "price_usd": last},
                                           new={"pax": pax, "price_usd": price}))
@@ -163,8 +169,8 @@ def sync_packets(store, source: dict, run_id: int, packets: list[Packet], city: 
     seen_ids = set(departure_ids.values())
     removed = []
     for (pkg_id, _d), dep in state.departures.items():
-        if dep["id"] in seen_ids or not dep.get("active"):
-            continue
+        if dep["id"] in seen_ids or not dep.get("active") or dep.get("is_manual"):
+            continue                    # hand-added dates are not the source's to remove
         if state.package_city.get(pkg_id) != city:
             continue                    # other departure city is not part of this run
         missing = (dep.get("missing_runs") or 0) + 1

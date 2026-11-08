@@ -113,6 +113,49 @@ class StructureEvents(unittest.TestCase):
         self.assertEqual(types(self.s), ["removed"])              # announced once
 
 
+class ManualEntries(unittest.TestCase):
+    def setUp(self):
+        self.s = FakeStore()
+        run_feed(self.s, SAMPLE)
+
+    def _hyatt_dep(self):
+        pkg = next(p for p in self.s.packages if p["external_key"] == "HYATT-09")
+        return next(d for d in self.s.departures if d["package_id"] == pkg["id"])
+
+    def test_manual_departure_is_never_removed(self):
+        pkg = self.s.packages[0]
+        self.s.insert_departures([{"package_id": pkg["id"], "date": "2030-01-01", "is_manual": True}])
+        for _ in range(4):
+            run_feed(self.s, SAMPLE)
+        d = next(d for d in self.s.departures if d["date"] == "2030-01-01")
+        self.assertTrue(d["active"])
+        self.assertEqual(self.s.events, [])
+
+    def test_different_site_price_next_to_manual_price_is_a_conflict(self):
+        dep = self._hyatt_dep()
+        self.s.manual_prices[(dep["id"], 4)] = 1000
+        feed = copy.deepcopy(SAMPLE)
+        feed["packets"][2]["prices"][0]["amount"] = "1,090 $"
+        run_feed(self.s, feed)
+        self.assertEqual(types(self.s), ["manual_conflict", "price_down"])
+        e = self.s.events[0]
+        self.assertEqual((e["old"], e["new"]), ({"pax": 4, "price_usd": 1000}, {"pax": 4, "price_usd": 1090}))
+
+    def test_same_site_price_as_manual_is_not_a_conflict(self):
+        dep = self._hyatt_dep()
+        self.s.manual_prices[(dep["id"], 4)] = 1090
+        feed = copy.deepcopy(SAMPLE)
+        feed["packets"][2]["prices"][0]["amount"] = "1,090 $"
+        run_feed(self.s, feed)
+        self.assertEqual(types(self.s), ["price_down"])
+
+    def test_unchanged_site_price_makes_no_conflict(self):
+        dep = self._hyatt_dep()
+        self.s.manual_prices[(dep["id"], 4)] = 1000
+        run_feed(self.s, SAMPLE)
+        self.assertEqual(self.s.events, [])
+
+
 class SoldOutEvents(unittest.TestCase):
     def test_sold_out_and_back_on_sale(self):
         s = FakeStore()

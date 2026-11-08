@@ -24,6 +24,7 @@ class State:
     departures: dict = field(default_factory=dict)     # (package_id, date) -> row
     last_prices: dict = field(default_factory=dict)    # (departure_id, pax) -> price | None
     package_city: dict = field(default_factory=dict)   # package_id -> city
+    manual_prices: dict = field(default_factory=dict)  # (departure_id, pax) -> price of the ACTIVE manual entry
 
 
 class RestStore:
@@ -120,7 +121,7 @@ class RestStore:
         for chunk in self._chunks(pkg_ids):
             rows = self._select_all("departures", {
                 "package_id": f"in.({','.join(map(str, chunk))})",
-                "select": "id,package_id,date,return_date,sold_out,active,missing_runs"})
+                "select": "id,package_id,date,return_date,sold_out,active,missing_runs,is_manual"})
             for r in rows:
                 st.departures[(r["package_id"], date.fromisoformat(r["date"]))] = r
                 dep_ids.append(r["id"])
@@ -131,6 +132,15 @@ class RestStore:
                 "order": "seen_at.desc,id.desc"})
             for r in rows:  # newest first: the first row per key is the last known price
                 st.last_prices.setdefault((r["departure_id"], r["pax"]), r["price_usd"])
+        # active manual prices (not cleared, not expired): a different automatic price next to them is a conflict
+        now = _now()
+        for chunk in self._chunks(sorted(dep_ids)):
+            rows = self._select_all("manual_entries", {
+                "departure_id": f"in.({','.join(map(str, chunk))})",
+                "cleared_at": "is.null", "valid_until": f"gt.{now}", "price_usd": "not.is.null",
+                "select": "departure_id,pax,price_usd", "order": "created_at.desc,id.desc"})
+            for r in rows:  # newest first
+                st.manual_prices.setdefault((r["departure_id"], r["pax"]), r["price_usd"])
         return st
 
     # ---- notifier --------------------------------------------------------

@@ -84,7 +84,7 @@ $$;
 reset role;
 
 -- ================================================================== admin
-select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000a1","role":"authenticated"}', true) \gset
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000a1","role":"authenticated","aal":"aal2"}', true) \gset
 set local role authenticated;
 do $$
 declare n bigint;
