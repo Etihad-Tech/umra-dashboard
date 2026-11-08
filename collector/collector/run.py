@@ -19,7 +19,7 @@ from datetime import date
 
 import requests
 
-from . import safo
+from . import notify, safo
 from .db import RestStore
 from .mandarin import SchemaError, parse_feed
 from .sync import sync_packets
@@ -62,24 +62,38 @@ def fetch_safo_rows(site_url: str) -> list:
 
 
 # --------------------------------------------------------------------- runs
+FAIL_THRESHOLD = 3   # consecutive failed runs before a "source_down" alert (one flaky run is not an outage)
+
+
+def _source_event(kind: str, source: dict, payload: dict) -> dict:
+    return {"type": kind, "company_id": source["company_id"], "package_id": None, "departure_id": None,
+            "old": None, "new": payload, "is_manual": False}
+
+
 def _execute(store, kind: str, produce) -> None:
     """produce(source) -> (ParseResult, city). Any failure marks the run failed, never a silent success."""
     source = store.get_source(kind)
     if not source.get("enabled", True):
         log.info("%s: source is disabled, skipping", kind)
         return
+    seeded = store.has_ok_run(source["id"])   # the very first successful run only fills the database (no events)
+    was_down = (source.get("consecutive_failures") or 0) >= FAIL_THRESHOLD
     run_id = store.start_run(source["id"])
     try:
         parsed, city = produce(source)
-        stats = sync_packets(store, source, run_id, parsed.packets, city)
+        stats = sync_packets(store, source, run_id, parsed.packets, city, emit_events=seeded)
     except Exception as e:  # noqa: BLE001
         msg = f"{type(e).__name__}: {e}"
         log.error("%s: run failed: %s", kind, msg)
         store.finish_run(run_id, "failed", error=msg)
-        store.mark_source_failed(source, msg)
+        failures = store.mark_source_failed(source, msg)
+        if failures == FAIL_THRESHOLD:        # exactly once per outage, not on every further failure
+            store.insert_events([_source_event("source_down", source, {"failures": failures, "error": msg[:200]})])
         return
     store.finish_run(run_id, "ok", items_seen=stats.items_seen, changes=stats.changes)
     store.mark_source_ok(source)
+    if was_down:
+        store.insert_events([_source_event("source_recovered", source, {})])
     log.info("%s: ok, %s items, %s new packages, %s new departures, %s price changes, %s deactivated "
              "(skipped: %s invalid, %s other city, %s duplicates)", kind, stats.items_seen,
              stats.new_packages, stats.new_departures, stats.snapshots, stats.deactivated,
@@ -134,6 +148,7 @@ def main(argv=None) -> int:
     ap.add_argument("--source", choices=["mandarin", "safo", "all"], default="mandarin")
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--loop", action="store_true")
+    ap.add_argument("--notify", action="store_true", help="after each run, send new events to Telegram")
     ap.add_argument("--city", help="Mandarin only: override departure city (default: sources.config, else TOSHKENT)")
     args = ap.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -162,6 +177,8 @@ def main(argv=None) -> int:
     while True:
         for n in names:
             run_once(store, urls[n], args.city) if n == "mandarin" else run_safo(store, urls[n])
+        if args.notify:
+            notify.run_from_env(store)
         if not args.loop:
             return 0
         time.sleep(min(store.get_source(KINDS[n]).get("interval_min", 15) for n in names) * 60)

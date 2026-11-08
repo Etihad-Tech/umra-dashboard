@@ -1,4 +1,4 @@
-# Collectors (Phase 3): Mandarin and Safo
+# Collectors (Phase 3) and Telegram alerts (Phase 4)
 
 Pull competitor prices and store them in Supabase. The ETIHAD collector comes next.
 Competitor addresses are not in this public repo: set `MANDARIN_URL` and `SAFO_SITE_URL` in the environment.
@@ -43,3 +43,27 @@ python -m collector.run --source all --loop    # repeat every sources.interval_m
 python -m unittest discover -s tests -t . -v
 ```
 Tests use synthetic fixtures in `tests/fixtures/` (feed formats from the TASK) and an in-memory store.
+
+## Events and Telegram (Phase 4)
+Every run records what changed in `events`: `price_down` / `price_up`, `new_package` (once, not per date),
+`new_departure`, `sold_out` / `back_on_sale`, `removed` (a date missing for 2 runs in a row),
+`source_down` (exactly once, at the 3rd failed run in a row) and `source_recovered`.
+- The **first successful run of a source is a seed**: it fills the database and creates no events.
+- A price that appears or disappears (NULL <-> number) is stored in the history but is not announced as up/down.
+
+`python -m collector.notify` sends unsent events to one private Telegram chat, in Uzbek:
+`🔻 MANDARIN · Lux · HYATT-09 · 12.12 — 4 kishi: $2,290 → $2,140 (−$150)`, plus ` · ETIHAD <name>: $1,990`
+when the competitor package is matched to one of ours (`package_matches`, same date and pax).
+- One message per company per pass (split only if it would exceed Telegram's limit). Sent events get `telegram_sent_at`,
+  so a restart never resends. Telegram 429 -> waits `retry_after`; any other failure leaves the events for the next pass.
+- Setup: create a NEW bot with @BotFather (not the pilgrim or support bots), put the token in `.env`
+  as `TELEGRAM_BOT_TOKEN`, add the bot to a private group, then store the chat id in the database
+  (SQL Editor): `insert into app_settings (key, value) values ('telegram', '{"chat_id": "-100...", "enabled": true}')`.
+  `"enabled": false` mutes it. Without the row, `TELEGRAM_CHAT_ID` from `.env` is used.
+- The token is only read from the environment and is never logged (error texts never contain the request URL).
+- Run exactly ONE notifier process.
+```bash
+python -m collector.notify --dry-run     # print the messages, send nothing, mark nothing
+python -m collector.notify               # one pass
+python -m collector.run --source all --loop --notify   # collect + notify
+```

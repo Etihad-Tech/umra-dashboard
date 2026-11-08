@@ -12,8 +12,9 @@ class FakeStore:
     def __init__(self):
         self.source = {"id": 1, "company_id": "F", "kind": "mandarin_json", "enabled": True,
                        "config": {"departure_city": "TOSHKENT"}, "consecutive_failures": 0, "down_since": None}
-        self.packages, self.departures, self.snapshots, self.runs = [], [], [], []
+        self.packages, self.departures, self.snapshots, self.runs, self.events = [], [], [], [], []
         self.source_ok = self.source_failed = 0
+        self.settings, self.our_prices = {}, {}
         self._ids = {"p": 0, "d": 0}
 
     # reference data
@@ -72,6 +73,33 @@ class FakeStore:
 
     def mark_source_ok(self, source):
         self.source_ok += 1
+        self.source["consecutive_failures"] = 0
 
     def mark_source_failed(self, source, error):
         self.source_failed += 1
+        self.source["consecutive_failures"] = (self.source.get("consecutive_failures") or 0) + 1
+        return self.source["consecutive_failures"]
+
+    def has_ok_run(self, source_id):
+        return any(r["status"] == "ok" for r in self.runs)
+
+    def insert_events(self, rows):
+        for r in rows:
+            self.events.append({**r, "id": len(self.events) + 1, "telegram_sent_at": None})
+
+    # notifier side
+    def unsent_events(self, limit):
+        return [dict(e) for e in self.events if e["telegram_sent_at"] is None][:limit]
+
+    def mark_events_sent(self, ids):
+        for e in self.events:
+            if e["id"] in ids:
+                e["telegram_sent_at"] = "now"
+
+    def get_setting(self, key):
+        return self.settings.get(key)
+
+    def event_context(self, events):
+        return {"packages": {p["id"]: p for p in self.packages},
+                "departures": {d["id"]: d for d in self.departures},
+                "our_prices": self.our_prices}
