@@ -1,9 +1,9 @@
 // Oddiy offline-kesh: ilova fayllari keshlanadi, yangi versiya chiqsa VERSION ni o'zgartiring.
-const VERSION = 'umra-v1';
+const VERSION = 'umra-v2';
 const CORE = [
   './', './index.html', './support.js', './manifest.webmanifest',
   './data/info.js', './data/packages.js', './data/services.js', './data/competitors.js',
-  './data/prices.js', './data/ours.js', './data/events.js',
+  './data/prices.js', './data/events.js',
   './icons/icon-192.png', './icons/icon-512.png'
 ];
 self.addEventListener('install', (e) => {
