@@ -1,0 +1,7 @@
+{
+  "name": "umra-dashboard-web-tests",
+  "private": true,
+  "description": "Tests for the login gate (auth.js) and the service worker. Run: npm install && npm test",
+  "scripts": { "test": "node --test" },
+  "devDependencies": { "jsdom": "^26.0.0" }
+}
