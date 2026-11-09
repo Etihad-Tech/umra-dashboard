@@ -4,7 +4,7 @@ from datetime import date
 from collector.db import State
 
 CATEGORY_MAP = {"PREMIUM": "premium", "LUX": "lux", "LUXE": "lux", "KOMFORT": "comfort",
-                "KOMFORT PLUS": "comfort", "EKONOM": "econom", "STANDART": "econom",
+                "KOMFORT PLUS": "comfort", "COMFORT": "comfort", "EKONOM": "econom", "STANDART": "econom",
                 "STANDART PLUS": "econom"}
 
 

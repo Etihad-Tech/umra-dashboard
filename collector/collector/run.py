@@ -1,4 +1,4 @@
-"""Entry point:  python -m collector.run [--source mandarin|safo|all] [--dry-run] [--loop]
+"""Entry point:  python -m collector.run [--source mandarin|safo|etihad|all] [--dry-run] [--loop]
 
 --dry-run   fetch + parse and print a summary. No database, no Supabase key needed.
 --loop      repeat forever every sources.interval_min minutes (a server may use cron instead).
@@ -6,6 +6,7 @@
 Competitor addresses are NOT kept in this public repository; set them in the environment:
     MANDARIN_URL   full URL of the Mandarin JSON feed
     SAFO_SITE_URL  address of the Safo public site
+    ETIHAD_API_URL / ETIHAD_API_KEY  our partner API (the key is sent in the X-Api-Key header, never in the URL)
 """
 from __future__ import annotations
 
@@ -19,7 +20,7 @@ from datetime import date
 
 import requests
 
-from . import notify, safo
+from . import etihad, notify, safo
 from .db import RestStore
 from .mandarin import SchemaError, parse_feed
 from .sync import sync_packets
@@ -27,16 +28,16 @@ from .sync import sync_packets
 log = logging.getLogger("collector")
 
 MAX_BYTES = 20 * 1024 * 1024
-KINDS = {"mandarin": "mandarin_json", "safo": "safo_supabase"}
+KINDS = {"mandarin": "mandarin_json", "safo": "safo_supabase", "etihad": "etihad_showroom"}
 
 
 # ------------------------------------------------------------------ fetching
-def fetch_feed(url: str, session: requests.Session | None = None, retries: int = 2):
+def fetch_feed(url: str, session: requests.Session | None = None, retries: int = 2, headers: dict | None = None):
     s = session or requests.Session()
     last: Exception | None = None
     for attempt in range(retries + 1):
         try:
-            r = s.get(url, timeout=30, headers={"User-Agent": "umra-price-monitor/1.0"})
+            r = s.get(url, timeout=30, headers={"User-Agent": "umra-price-monitor/1.0", **(headers or {})})
             r.raise_for_status()
             if len(r.content) > MAX_BYTES:
                 raise SchemaError("feed is unexpectedly large")
@@ -114,6 +115,12 @@ def run_safo(store, site_url: str, today: date | None = None) -> None:
     _execute(store, KINDS["safo"], produce)
 
 
+def run_etihad(store, url: str, api_key: str) -> None:
+    def produce(_source):
+        return etihad.parse_packages(fetch_feed(url, headers={"X-Api-Key": api_key})), None
+    _execute(store, KINDS["etihad"], produce)
+
+
 # ------------------------------------------------------------------ dry runs
 def _summary(parsed) -> None:
     print(f"items: {parsed.total} | usable: {len(parsed.packets)} | invalid: {parsed.invalid} | "
@@ -136,6 +143,10 @@ def dry_run_safo(site_url: str) -> None:
     _summary(safo.parse_rows(rows, date.today()))
 
 
+def dry_run_etihad(url: str, api_key: str) -> None:
+    _summary(etihad.parse_packages(fetch_feed(url, headers={"X-Api-Key": api_key})))
+
+
 def _need_env(name: str) -> str | None:
     value = os.environ.get(name)
     if not value:
@@ -145,26 +156,37 @@ def _need_env(name: str) -> str | None:
 
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--source", choices=["mandarin", "safo", "all"], default="mandarin")
+    ap.add_argument("--source", choices=["mandarin", "safo", "etihad", "all"], default="mandarin")
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--loop", action="store_true")
     ap.add_argument("--notify", action="store_true", help="after each run, send new events to Telegram")
     ap.add_argument("--city", help="Mandarin only: override departure city (default: sources.config, else TOSHKENT)")
     args = ap.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
-    names = ["mandarin", "safo"] if args.source == "all" else [args.source]
+    names = ["mandarin", "safo", "etihad"] if args.source == "all" else [args.source]
 
     urls = {}
     for n in names:
-        urls[n] = _need_env("MANDARIN_URL" if n == "mandarin" else "SAFO_SITE_URL")
+        urls[n] = _need_env({"mandarin": "MANDARIN_URL", "safo": "SAFO_SITE_URL", "etihad": "ETIHAD_API_URL"}[n])
         if not urls[n]:
+            return 2
+
+    api_key = None
+    if "etihad" in names:
+        api_key = _need_env("ETIHAD_API_KEY")
+        if not api_key:
             return 2
 
     if args.dry_run:
         for n in names:
             print(f"== {n}")
             try:
-                dry_run_mandarin(urls[n], args.city or "TOSHKENT") if n == "mandarin" else dry_run_safo(urls[n])
+                if n == "mandarin":
+                    dry_run_mandarin(urls[n], args.city or "TOSHKENT")
+                elif n == "safo":
+                    dry_run_safo(urls[n])
+                else:
+                    dry_run_etihad(urls[n], api_key)
             except Exception as e:  # noqa: BLE001
                 print(f"FAILED: {type(e).__name__}: {e}")
                 return 1
@@ -176,7 +198,12 @@ def main(argv=None) -> int:
     store = RestStore(base, key)
     while True:
         for n in names:
-            run_once(store, urls[n], args.city) if n == "mandarin" else run_safo(store, urls[n])
+            if n == "mandarin":
+                run_once(store, urls[n], args.city)
+            elif n == "safo":
+                run_safo(store, urls[n])
+            else:
+                run_etihad(store, urls[n], api_key)
         if args.notify:
             notify.run_from_env(store)
         if not args.loop:
