@@ -3,7 +3,7 @@ import unittest
 from datetime import date
 from pathlib import Path
 
-from collector.mandarin import SchemaError, parse_feed, parse_price
+from collector.mandarin import SchemaError, _to_int, parse_feed, parse_price
 
 SAMPLE = json.loads((Path(__file__).parent / "fixtures" / "mandarin_sample.json").read_text())
 
@@ -17,6 +17,24 @@ class ParsePrice(unittest.TestCase):
     def test_no_data_is_none_never_zero(self):
         for raw in ["", None, "0 $", "—", "n/a", 0, True, "999999 $"]:
             self.assertIsNone(parse_price(raw), raw)
+
+    def test_decimal_comma_and_other_separators(self):
+        for raw, want in [("1 190,00 $", 1190), ("1.190,50 $", 1190), ("1.190", 1190), ("1\u00a0190 $", 1190),
+                          ("1\u202f190", 1190), ("USD 1190", 1190), ("12 000", 12000), ("1190.5", 1190)]:
+            self.assertEqual(parse_price(raw), want, raw)
+
+    def test_two_numbers_are_not_a_price(self):
+        for raw in ["2 x 1190", "1190$ / 1290$", "2,290$ (4 kishi)", "1 190 - 1 290 $"]:
+            self.assertIsNone(parse_price(raw), raw)
+
+    def test_out_of_range_is_invalid(self):
+        for raw in ["99 $", "12,50", "1,19", 99, 50.0, "1,190,000", 100_001, float("nan"), float("inf")]:
+            self.assertIsNone(parse_price(raw), raw)
+        self.assertEqual((parse_price("100 $"), parse_price(100_000)), (100, 100_000))
+
+    def test_to_int_rejects_bool_and_non_positive(self):
+        self.assertEqual([_to_int(v) for v in (14, "14", 14.0, True, False, 0, -3, "x", None, float("inf"))],
+                         [14, 14, 14, None, None, None, None, None, None, None])
 
 
 class ParseFeed(unittest.TestCase):
@@ -47,7 +65,21 @@ class ParseFeed(unittest.TestCase):
         eco = next(p for p in r.packets if p.family == "ECO-10")
         self.assertEqual(eco.prices, {4: 890, 3: 950, 2: 1050, 1: None})
         none = next(p for p in r.packets if p.family == "NOPRICE-1")
-        self.assertEqual(none.prices, {})
+        self.assertEqual(none.prices, {4: None, 3: None, 2: None, 1: None})   # all four pax, always
+
+    def test_a_pax_missing_from_the_list_is_none(self):
+        feed = json.loads(json.dumps(SAMPLE))
+        feed["packets"][2]["prices"] = [x for x in feed["packets"][2]["prices"] if x["pax"] != 1]
+        hyatt = next(p for p in parse_feed(feed, "TOSHKENT").packets if p.family == "HYATT-09")
+        self.assertEqual(hyatt.prices, {4: 1190, 3: 1290, 2: 1490, 1: None})
+
+    def test_no_price_anywhere_is_failure(self):
+        feed = json.loads(json.dumps(SAMPLE))
+        for p in feed["packets"]:
+            if isinstance(p, dict):
+                p.pop("prices", None)                  # e.g. the field was renamed
+        with self.assertRaises(SchemaError):
+            parse_feed(feed, "TOSHKENT")
 
     def test_duplicate_keeps_first(self):
         r = parse_feed(SAMPLE, "TOSHKENT")

@@ -14,6 +14,7 @@ import argparse
 import logging
 import os
 import sys
+import threading
 import time
 from collections import Counter
 from datetime import date
@@ -21,6 +22,7 @@ from datetime import date
 import requests
 
 from . import etihad, notify, safo
+from .clock import today_tashkent
 from .db import RestStore
 from .mandarin import SchemaError, parse_feed
 from .sync import sync_packets
@@ -71,8 +73,9 @@ def _source_event(kind: str, source: dict, payload: dict) -> dict:
             "old": None, "new": payload, "is_manual": False}
 
 
-def _execute(store, kind: str, produce) -> None:
-    """produce(source) -> (ParseResult, city). Any failure marks the run failed, never a silent success."""
+def _execute(store, kind: str, produce, today: date | None = None) -> None:
+    """produce(source) -> (ParseResult, city). Any failure marks the run failed, never a silent success.
+    `today` (Tashkent date) is only passed by tests."""
     source = store.get_source(kind)
     if not source.get("enabled", True):
         log.info("%s: source is disabled, skipping", kind)
@@ -82,7 +85,7 @@ def _execute(store, kind: str, produce) -> None:
     run_id = store.start_run(source["id"])
     try:
         parsed, city = produce(source)
-        stats = sync_packets(store, source, run_id, parsed.packets, city, emit_events=seeded)
+        stats = sync_packets(store, source, run_id, parsed.packets, city, emit_events=seeded, today=today)
     except Exception as e:  # noqa: BLE001
         msg = f"{type(e).__name__}: {e}"
         log.error("%s: run failed: %s", kind, msg)
@@ -95,30 +98,52 @@ def _execute(store, kind: str, produce) -> None:
     store.mark_source_ok(source)
     if was_down:
         store.insert_events([_source_event("source_recovered", source, {})])
-    log.info("%s: ok, %s items, %s new packages, %s new departures, %s price changes, %s deactivated "
-             "(skipped: %s invalid, %s other city, %s duplicates)", kind, stats.items_seen,
-             stats.new_packages, stats.new_departures, stats.snapshots, stats.deactivated,
+    log.info("%s: ok, %s items, %s new packages, %s new departures, %s price changes, %s deactivated, "
+             "%s hand-added rows taken over (skipped: %s invalid, %s other city, %s duplicates)", kind, stats.items_seen,
+             stats.new_packages, stats.new_departures, stats.snapshots, stats.deactivated, stats.taken_over,
              parsed.invalid, parsed.other_city, parsed.duplicates)
 
 
-def run_once(store, url: str, city_override: str | None = None) -> None:
+def run_once(store, url: str, city_override: str | None = None, today: date | None = None) -> None:
     """Mandarin."""
     def produce(source):
-        city = (city_override or source.get("config", {}).get("departure_city") or "TOSHKENT").upper()
+        city = (city_override or (source.get("config") or {}).get("departure_city") or "TOSHKENT").upper()
         return parse_feed(fetch_feed(url), city), city
-    _execute(store, KINDS["mandarin"], produce)
+    _execute(store, KINDS["mandarin"], produce, today)
 
 
 def run_safo(store, site_url: str, today: date | None = None) -> None:
+    day = today or today_tashkent()          # one date for the parse (yearless dates) and the sync (left trips)
+
     def produce(_source):
-        return safo.parse_rows(fetch_safo_rows(site_url), today or date.today()), None
-    _execute(store, KINDS["safo"], produce)
+        return safo.parse_rows(fetch_safo_rows(site_url), day), None
+    _execute(store, KINDS["safo"], produce, day)
 
 
-def run_etihad(store, url: str, api_key: str) -> None:
+def run_etihad(store, url: str, api_key: str, today: date | None = None) -> None:
     def produce(_source):
         return etihad.parse_packages(fetch_feed(url, headers={"X-Api-Key": api_key})), None
-    _execute(store, KINDS["etihad"], produce)
+    _execute(store, KINDS["etihad"], produce, today)
+
+
+def run_cycle(store, names: list[str], urls: dict, api_key: str | None = None, city: str | None = None,
+              do_notify: bool = False) -> None:
+    """One pass over the sources, then Telegram. Each piece has its own guard: a database hiccup while
+    starting Mandarin must not skip Safo, ETIHAD or the alerts. Only the error TYPE is logged (messages
+    can contain URLs)."""
+    runners = {"mandarin": lambda: run_once(store, urls["mandarin"], city),
+               "safo": lambda: run_safo(store, urls["safo"]),
+               "etihad": lambda: run_etihad(store, urls["etihad"], api_key)}
+    for n in names:
+        try:
+            runners[n]()
+        except Exception as e:  # noqa: BLE001
+            log.error("%s: run aborted: %s", n, type(e).__name__)
+    if do_notify:
+        try:
+            notify.run_from_env(store)
+        except Exception as e:  # noqa: BLE001
+            log.error("notify: pass aborted: %s", type(e).__name__)
 
 
 # ------------------------------------------------------------------ dry runs
@@ -127,7 +152,7 @@ def _summary(parsed) -> None:
           f"other city: {parsed.other_city} | duplicates: {parsed.duplicates}")
     print("categories:", dict(Counter(p.category_raw or "(empty)" for p in parsed.packets)))
     print("packets with no price at all:",
-          sum(1 for p in parsed.packets if not any(p.prices.values())))
+          sum(1 for p in parsed.packets if not any(v is not None for v in p.prices.values())))
     for p in parsed.packets[:3]:
         print(" sample:", p.family, p.date, p.return_date, p.category_raw, p.prices, p.sold_out)
 
@@ -140,7 +165,7 @@ def dry_run_safo(site_url: str) -> None:
     rows = fetch_safo_rows(site_url)
     if rows:
         print("columns in first row:", sorted(rows[0].keys()))
-    _summary(safo.parse_rows(rows, date.today()))
+    _summary(safo.parse_rows(rows, today_tashkent()))
 
 
 def dry_run_etihad(url: str, api_key: str) -> None:
@@ -198,23 +223,55 @@ def main(argv=None) -> int:
     store = RestStore(base, key)
 
     def cycle() -> None:
-        for n in names:
-            if n == "mandarin":
-                run_once(store, urls[n], args.city)
-            elif n == "safo":
-                run_safo(store, urls[n])
-            else:
-                run_etihad(store, urls[n], api_key)
-        if args.notify:
-            notify.run_from_env(store)
+        run_cycle(store, names, urls, api_key, args.city, args.notify)
 
     if not args.loop:
         cycle()
         return 0
-    return loop_forever(cycle, lambda: min(store.get_source(KINDS[n]).get("interval_min", 15) for n in names) * 60)
+    watchdog = Watchdog()
+    watchdog.start()
+    return loop_forever(cycle, lambda: min(store.get_source(KINDS[n]).get("interval_min", 15) for n in names) * 60,
+                        watchdog=watchdog)
 
 
-def loop_forever(cycle, interval_seconds, sleep=time.sleep) -> int:
+class Watchdog:
+    """Restarts a STUCK collector: if the main loop has not finished a cycle for longer than
+    max(3 x interval, 20 min), the process exits (code 70) and Docker's restart policy starts a fresh one.
+    A hang (e.g. a network read that never ends) is otherwise invisible: the alerts run in the same loop."""
+    EXIT_CODE = 70
+
+    def __init__(self, min_limit: float = 20 * 60, interval: float = 15 * 60, check_every: float = 60,
+                 clock=time.monotonic, exit_process=os._exit, sleep=time.sleep):
+        self.min_limit, self.check_every = min_limit, check_every
+        self.clock, self.exit_process, self.sleep = clock, exit_process, sleep
+        self.last = clock()
+        self.limit = max(3 * interval, min_limit)
+
+    def beat(self, interval: float) -> None:
+        """Called after every finished cycle with the wait before the next one."""
+        self.limit = max(3 * interval, self.min_limit)
+        self.last = self.clock()
+
+    def check(self) -> bool:
+        idle = self.clock() - self.last
+        if idle > self.limit:
+            log.critical("watchdog: no finished cycle for %d min (limit %d min), exiting so the container restarts",
+                         idle // 60, self.limit // 60)
+            self.exit_process(self.EXIT_CODE)
+            return False
+        return True
+
+    def _run(self) -> None:
+        while self.check():         # check() never returns False for real: os._exit ends the process
+            self.sleep(self.check_every)
+
+    def start(self) -> threading.Thread:
+        t = threading.Thread(target=self._run, name="watchdog", daemon=True)
+        t.start()
+        return t
+
+
+def loop_forever(cycle, interval_seconds, sleep=time.sleep, watchdog: Watchdog | None = None) -> int:
     """Server mode: one broken cycle (database or network down) must never stop the collector."""
     while True:
         try:
@@ -225,7 +282,10 @@ def loop_forever(cycle, interval_seconds, sleep=time.sleep) -> int:
             wait = interval_seconds()
         except Exception:  # noqa: BLE001
             wait = 15 * 60
-        sleep(max(60, min(wait, 24 * 3600)))
+        wait = max(60, min(wait, 24 * 3600))
+        if watchdog is not None:
+            watchdog.beat(wait)
+        sleep(wait)
 
 if __name__ == "__main__":
     sys.exit(main())

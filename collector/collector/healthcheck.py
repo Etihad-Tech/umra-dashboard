@@ -4,6 +4,9 @@
 
 "Recently" = within 3 intervals + 5 minutes of that source's own interval_min. Used as the Docker healthcheck and
 safe to call from any monitoring tool. Prints source names only, never keys.
+A 'manual' source is people typing prices in the dashboard, not a collector: it is never checked.
+Note: Docker does not restart an "unhealthy" container; a stuck collector is restarted by its own watchdog
+(run.Watchdog exits the process, the restart policy starts a new one).
 """
 from __future__ import annotations
 
@@ -19,7 +22,7 @@ NAMES = {"B": "ETIHAD", "S": "SAFO", "F": "MANDARIN"}
 def stale_sources(rows: list[dict], now: datetime) -> list[str]:
     bad = []
     for r in rows:
-        if r.get("enabled") is False:
+        if r.get("enabled") is False or r.get("kind") == "manual":
             continue
         name = NAMES.get(r.get("company_id"), str(r.get("company_id")))
         raw = r.get("last_ok_at")
@@ -40,7 +43,8 @@ def main() -> int:
         print("SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY are not set", file=sys.stderr)
         return 1
     try:
-        r = requests.get(f"{base}/rest/v1/sources?select=company_id,enabled,interval_min,last_ok_at", timeout=15,
+        r = requests.get(f"{base.rstrip('/')}/rest/v1/sources?select=company_id,kind,enabled,interval_min,last_ok_at",
+                         timeout=15,
                          headers={"apikey": key, "Authorization": f"Bearer {key}"})
         r.raise_for_status()
         rows = r.json()
