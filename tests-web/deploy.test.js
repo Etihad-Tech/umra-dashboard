@@ -60,11 +60,12 @@ test('containers: web runs as non-root without capabilities; collector has init 
   assert.match(web, /user: "10002:10002"/);
   assert.match(web, /cap_drop: \[ALL\]/);
   assert.ok(!/cap_add/.test(web), 'no capability added back');
-  assert.match(web, /net\.ipv4\.ip_unprivileged_port_start: 0/);
+  assert.ok(!/sysctls|ip_unprivileged_port_start/.test(web), 'no sysctl: the web port is not privileged');
   assert.match(web, /read_only: true/);
   assert.match(web, /no-new-privileges:true/);
   assert.match(web, /healthcheck:/);
-  assert.match(web, /"443:443\/udp"/);
+  assert.match(web, /container_name: etihad-narx-web/);
+  assert.match(col, /container_name: etihad-narx-collector/);
   assert.match(web, /SUPABASE_URL: \$\{SUPABASE_URL/, 'the CSP needs SUPABASE_URL at run time');
   assert.match(col, /init: true/);
   assert.ok(!/^\s+ports:/m.test(col), 'the collector publishes no port');
@@ -74,6 +75,31 @@ test('containers: web runs as non-root without capabilities; collector has init 
   assert.match(df, /^USER web$/m);
   assert.ok(!/COPY data/.test(df), 'no data folder in the image');
   assert.match(read('deploy/backup.sh'), /PG_IMAGE="postgres:17\.\d+-alpine@sha256:[0-9a-f]{64}"/);
+});
+
+test('web is reachable only through nginx: loopback port, plain HTTP inside, TLS and nothing else in nginx', () => {
+  const compose = read('deploy/docker-compose.yml');
+  const ports = [...compose.matchAll(/^\s+ports:\s*\[([^\]]*)\]/gm)].map((m) => m[1]);
+  assert.deepStrictEqual(ports, ['"127.0.0.1:${WEB_PORT:-8744}:8080"'], 'one published port, on 127.0.0.1 only');
+  const caddy = read('deploy/Caddyfile');
+  assert.match(caddy, /^:8080 \{$/m, 'Caddy listens where compose publishes');
+  assert.match(caddy, /^\s+auto_https off$/m);
+  const nginx = read('deploy/nginx-site.conf');
+  assert.match(nginx, /proxy_pass\s+http:\/\/127\.0\.0\.1:__WEB_PORT__;/);
+  assert.match(nginx, /server_name __SITE_DOMAIN__;/);
+  assert.match(nginx, /location \/\.well-known\/acme-challenge\//, 'certbot renewals');
+  assert.match(nginx, /server_tokens off;/);
+  assert.ok(!/^\s*add_header/m.test(nginx), 'headers come from Caddy only (no duplicates)');
+  assert.match(read('deploy/.env.example'), /^WEB_PORT=\d+$/m);
+});
+
+test('scripts use docker through sudo when the user is not in the docker group (shared server)', () => {
+  for (const f of ['deploy/deploy.sh', 'deploy/backup.sh', 'deploy/restore.sh']) {
+    const sh = read(f);
+    assert.match(sh, /DOCKER=\(sudo -n docker\)/, f);
+    const bare = sh.split('\n').filter((l) => /^\s*(\S+\s*\|\s*)?docker (run|compose)\b/.test(l));
+    assert.deepStrictEqual(bare, [], f + ': every docker run/compose goes through "${DOCKER[@]}"');
+  }
 });
 
 test('backup: password never on the command line, SSL required, temp file cleaned up', () => {

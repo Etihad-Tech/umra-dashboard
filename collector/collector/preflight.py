@@ -55,6 +55,9 @@ def problems(web: dict, collector: dict) -> list:
     domain = web.get("SITE_DOMAIN", "")
     if not re.fullmatch(r"[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?\.[A-Za-z]{2,}", domain):
         out.append("SITE_DOMAIN must be a bare domain such as prices.example.com (no https://, no slash)")
+    port = web.get("WEB_PORT", "8744")
+    if not (port.isdigit() and 1024 <= int(port) <= 65535):
+        out.append("WEB_PORT must be a number from 1024 to 65535 (the loopback port nginx proxies to)")
     url = web.get("SUPABASE_URL", "")
     if not re.fullmatch(r"https://[a-z0-9]+\.supabase\.co", url):
         out.append("SUPABASE_URL must look like https://<project>.supabase.co")
