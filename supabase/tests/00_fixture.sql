@@ -6,7 +6,12 @@ insert into auth.users (id, email) values
   ('00000000-0000-0000-0000-0000000000e1', 'editor@test'),
   ('00000000-0000-0000-0000-0000000000b1', 'viewer@test'),
   ('00000000-0000-0000-0000-0000000000f1', 'inactive@test');
--- the on_auth_user_created trigger made them active viewers; set the real roles:
+-- the on_auth_user_created trigger made them INACTIVE viewers (new accounts start closed); an admin opens them:
+update public.profiles set active = true
+ where user_id in ('00000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-0000000000e1', '00000000-0000-0000-0000-0000000000b1');
+-- the admin enrolled 2FA before being promoted (the database refuses an admin without a verified factor)
+insert into auth.mfa_factors (id, user_id, friendly_name, factor_type, status, created_at, updated_at)
+values (gen_random_uuid(), '00000000-0000-0000-0000-0000000000a1', 'fixture', 'totp', 'verified', now(), now());
 update public.profiles set role = 'admin'  where user_id = '00000000-0000-0000-0000-0000000000a1';
 update public.profiles set role = 'editor' where user_id = '00000000-0000-0000-0000-0000000000e1';
 update public.profiles set role = 'editor', active = false where user_id = '00000000-0000-0000-0000-0000000000f1';

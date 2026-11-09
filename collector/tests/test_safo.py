@@ -24,7 +24,7 @@ class FreeDate(unittest.TestCase):
         f = safo.parse_free_date
         self.assertEqual(f("18.11.2026", TODAY), date(2026, 11, 18))
         self.assertEqual(f("18.11.26", TODAY), date(2026, 11, 18))
-        self.assertEqual(f("17.09", TODAY), date(2027, 9, 17))     # already passed this year -> next year
+        self.assertEqual(f("17.09", TODAY), date(2027, 9, 17))     # passed 52 days ago (> 45) -> next year
         self.assertEqual(f("17.12", TODAY), date(2026, 12, 17))
         self.assertEqual(f("8.11", TODAY), date(2026, 11, 8))      # today still counts
         for bad in ["", None, "soon", "31.02", "99.99"]:
@@ -34,8 +34,35 @@ class FreeDate(unittest.TestCase):
         f = safo.parse_free_date
         self.assertEqual(f("02.01", date(2026, 12, 30)), date(2027, 1, 2))
         self.assertEqual(f("30.12", date(2026, 12, 30)), date(2026, 12, 30))
-        self.assertEqual(f("30.12", date(2027, 1, 2)), date(2027, 12, 30))
+        self.assertEqual(f("30.12", date(2027, 1, 2)), date(2026, 12, 30))   # left 3 days ago: LAST December
+        self.assertEqual(f("28.11", date(2027, 1, 2)), date(2026, 11, 28))   # 35 days ago, across New Year
+        self.assertEqual(f("15.11", date(2027, 1, 2)), date(2027, 11, 15))   # 48 days ago: next one
         self.assertEqual(f("29.02", date(2026, 11, 8)), date(2028, 2, 29))   # leap day
+
+    def test_a_recently_passed_departure_keeps_its_year(self):
+        f = safo.parse_free_date
+        self.assertEqual(f("08.11", date(2026, 11, 9)), date(2026, 11, 8))    # stale row the day after: not 2027
+        self.assertEqual(f("25.09", date(2026, 11, 9)), date(2026, 9, 25))    # 45 days: still this year
+        self.assertEqual(f("24.09", date(2026, 11, 9)), date(2027, 9, 24))    # 46 days: next year
+        self.assertEqual(f("08.11", date(2026, 11, 9), grace_days=0), date(2027, 11, 8))
+
+    def test_return_date_is_the_next_one_after_departure(self):
+        rows = [{"id": 1, "section": "Lux", "date_out": "28.12", "date_return": "05.01", "price_4": 2000},
+                {"id": 2, "section": "Eko", "date_out": "10.12", "date_return": "05.12", "price_4": 1000}]
+        by = {p.family: p for p in safo.parse_rows(rows, date(2026, 11, 9)).packets}
+        self.assertEqual((by["Lux"].date, by["Lux"].return_date), (date(2026, 12, 28), date(2027, 1, 5)))
+        self.assertEqual(by["Eko"].return_date, date(2027, 12, 5))     # no grace for a return date
+
+    def test_stale_row_across_midnight_makes_no_new_date_and_no_removal(self):
+        rows = [{"id": 1, "section": "swiss10", "date_out": "08.11", "price_4": "1200"},
+                {"id": 2, "section": "hyatt", "date_out": "20.11", "price_4": "1500"}]
+        s = FakeStore()
+        s.source = {**s.source, "company_id": "S", "kind": "safo_supabase"}
+        for today in (date(2026, 11, 7), date(2026, 11, 8), date(2026, 11, 9), date(2026, 11, 9)):
+            with mock.patch.object(runner, "fetch_safo_rows", return_value=rows):
+                runner.run_safo(s, "http://x", today)
+        self.assertEqual(sorted(d["date"] for d in s.departures), ["2026-11-08", "2026-11-20"])
+        self.assertEqual(s.events, [])
 
 
 class ParseRows(unittest.TestCase):
@@ -149,3 +176,64 @@ class RelativeGateway(unittest.TestCase):
     def test_service_role_is_still_refused_with_a_relative_url(self):
         with self.assertRaises(safo.SchemaError):
             safo.find_credentials([self.page(key=jwt("service_role"))], self.ORIGIN)
+
+
+class SafoPaging(unittest.TestCase):
+    class Resp:
+        def __init__(self, data):
+            self._data, self.status_code, self.content = data, 200, b"[]"
+
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return self._data
+
+    def session(self, *pages):
+        sess = mock.Mock()
+        sess.get.side_effect = [self.Resp(p) for p in pages]
+        return sess
+
+    def test_reads_past_a_row_cap_in_id_order(self):
+        pages = [[{"id": i} for i in range(a, b)] for a, b in ((1, 1001), (1001, 1201))] + [[]]
+        sess = self.session(*pages)
+        rows = safo.fetch_rows("https://x.supabase.co", "anon", session=sess, page_size=1000)
+        self.assertEqual(len(rows), 1200)
+        params = [c.kwargs["params"] for c in sess.get.call_args_list]
+        self.assertEqual([p["offset"] for p in params], [0, 1000, 1200])
+        self.assertTrue(all(p["order"] == "id.asc" and p["is_active"] == "eq.true" for p in params))
+
+    def test_a_server_that_ignores_offset_does_not_loop(self):
+        same = [{"id": 1}, {"id": 2}]
+        sess = self.session(same, same)
+        self.assertEqual(safo.fetch_rows("https://x.supabase.co", "anon", session=sess, page_size=1000), same)
+        self.assertEqual(sess.get.call_count, 2)
+
+    def test_a_server_that_ignores_limit_is_read_once(self):
+        everything = [{"id": i} for i in range(5)]
+        sess = self.session(everything)
+        self.assertEqual(len(safo.fetch_rows("https://x.supabase.co", "anon", session=sess, page_size=2)), 5)
+        self.assertEqual(sess.get.call_count, 1)
+
+    def test_endless_pages_fail_loudly(self):
+        sess = mock.Mock()
+        sess.get.side_effect = lambda *a, **kw: self.Resp([{"no_id": 1}])
+        with self.assertRaises(SchemaError):
+            safo.fetch_rows("https://x.supabase.co", "anon", session=sess, page_size=1)
+
+
+class TashkentToday(unittest.TestCase):
+    def test_the_day_changes_at_19_utc(self):
+        from datetime import datetime, timezone
+        from collector.clock import today_tashkent
+        self.assertEqual(today_tashkent(datetime(2026, 12, 31, 18, 59, tzinfo=timezone.utc)), date(2026, 12, 31))
+        self.assertEqual(today_tashkent(datetime(2026, 12, 31, 19, 0, tzinfo=timezone.utc)), date(2027, 1, 1))
+
+    def test_safo_run_uses_the_tashkent_date(self):
+        s = FakeStore()
+        s.source = {**s.source, "company_id": "S", "kind": "safo_supabase"}
+        rows = [{"id": 1, "section": "Lux", "date_out": "17.09", "price_4": 2000}]
+        with mock.patch.object(runner, "fetch_safo_rows", return_value=rows), \
+             mock.patch.object(runner, "today_tashkent", return_value=date(2026, 9, 20)):
+            runner.run_safo(s, "http://x")
+        self.assertEqual([d["date"] for d in s.departures], ["2026-09-17"])

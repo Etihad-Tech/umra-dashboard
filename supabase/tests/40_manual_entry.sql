@@ -109,13 +109,29 @@ reset role;
 
 -- the table follows profiles: a name set by an admin shows up, deactivation removes it, reactivation brings it back
 do $$
-declare v text; n bigint;
+declare v text; n bigint; q text;
 begin
   assert not exists (select 1 from pg_views where schemaname = 'public' and viewname = 'profile_names'),
     'profile_names must be a plain table, not a SECURITY DEFINER view';
-  assert not exists (select 1 from pg_depend d join pg_rewrite r on r.oid = d.objid
-                      where d.refobjid = 'auth.users'::regclass and r.ev_class = 'public.profile_names'::regclass),
-    'profile_names must not read auth.users';
+  -- no view in public may read auth.users (emails): a view's query is a rewrite rule that depends on the table
+  q := $q$select count(*) from pg_depend d
+              join pg_rewrite r on r.oid = d.objid
+              join pg_class v on v.oid = r.ev_class
+              join pg_namespace ns on ns.oid = v.relnamespace
+             where d.classid = 'pg_rewrite'::regclass and d.refclassid = 'pg_class'::regclass
+               and d.refobjid = 'auth.users'::regclass and ns.nspname = 'public'$q$;
+  execute q into n;
+  assert n = 0, format('%s view(s) in public read auth.users', n);
+  -- the check can fail: a probe view that reads auth.users is found (and dropped again)
+  create view public.probe_reads_auth_users as select id from auth.users;
+  execute q into n;
+  assert n = 1, 'the auth.users check did not see a view that reads it';
+  drop view public.probe_reads_auth_users;
+  -- and the badge table holds only the two columns it needs (no email copied in)
+  assert (select array_agg(attname::text order by attnum) from pg_attribute
+           where attrelid = 'public.profile_names'::regclass and attnum > 0 and not attisdropped)
+         = array['user_id', 'display_name'],
+    'profile_names must hold only user_id and display_name';
   update public.profiles set full_name = 'Aziz' where user_id = '00000000-0000-0000-0000-0000000000a1';
   select display_name into v from public.profile_names where user_id = '00000000-0000-0000-0000-0000000000a1';
   assert v = 'Aziz', format('renaming syncs, got %s', v);

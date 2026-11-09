@@ -1,9 +1,11 @@
 # tests-web
 
-Tests for the login gate (`../auth.js`) and the service worker (`../sw.js`), with a fake Supabase client (no network).
+Tests for the login gate (`../auth.js`), the dashboard data and page logic (`../live.js`, `../index.html`), manual
+entry (`../kiritish.js`), the service worker (`../sw.js`) and the deploy settings (`../deploy/`: CSP, headers,
+containers, backup), with fake Supabase clients (no network).
 
 ```bash
 cd tests-web
-npm install
+npm ci
 npm test
 ```

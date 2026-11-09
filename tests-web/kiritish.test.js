@@ -24,6 +24,7 @@ function fakeClient(tables, opts = {}) {
     async function run() {
       if (b.mode !== 'select') {
         writes.push({ table, mode: b.mode, payload: b.payload, filters: b.filters });
+        if (opts.gate) await opts.gate;          // lets a test hold a write "in flight"
         if (opts.writeError) return { error: opts.writeError };
         return { data: b.single ? { id: 900 } : null, error: null };
       }
@@ -55,7 +56,7 @@ async function page(tables = DATA(), opts = {}) {
   const doc = dom.window.document;
   const client = fakeClient(tables, opts);
   const confirms = [];
-  const k = K.create({ document: doc, client, root: doc.getElementById('kiritish'), now: () => Date.UTC(2026, 10, 8),
+  const k = K.create({ document: doc, client, root: doc.getElementById('kiritish'), now: () => (opts.now || Date.UTC(2026, 10, 8)),
     confirm: (m) => { confirms.push(m); return opts.confirm !== false; } });
   await k.start(); await settle();
   return { doc, client, confirms, k, win: dom.window };
@@ -302,4 +303,35 @@ test('price table: the last company and package are remembered and restored (sto
   assert.equal((await mk()).doc.querySelectorAll('#p-table').length, 0);
   store['umra.kiritish.last'] = JSON.stringify({ co: 'ZZ', pkg: '9' });
   assert.equal((await mk()).doc.querySelectorAll('#p-table').length, 0);
+});
+
+test('price table: "today" is the Tashkent date, so a departure that left yesterday there is not offered', async () => {
+  assert.equal(K.tashkentToday(Date.UTC(2026, 10, 8, 18, 59)), '2026-11-08');   // 23:59 in Tashkent
+  assert.equal(K.tashkentToday(Date.UTC(2026, 10, 8, 19, 0)), '2026-11-09');    // already 00:00 next day there
+  const d = DATA3();
+  d.departures.push({ id: 14, package_id: 1, date: '2026-11-08', sold_out: false, is_manual: false, active: true });
+  const late = await page(d, { now: Date.UTC(2026, 10, 8, 20, 0) });           // 09.11 01:00 Tashkent, UTC still says 08.11
+  await chip(late, 'p-companies', 'F'); await chip(late, 'p-packages', '1');
+  assert.equal(late.doc.getElementById('c-14-4'), null, '08.11 is yesterday in Tashkent');
+  const evening = await page(d, { now: Date.UTC(2026, 10, 8, 18, 0) });         // 08.11 23:00 Tashkent
+  await chip(evening, 'p-companies', 'F'); await chip(evening, 'p-packages', '1');
+  assert.ok(evening.doc.getElementById('c-14-4'), '08.11 is still today in Tashkent');
+});
+
+test('price table: while a save is on its way the form cannot be sent again', async () => {
+  let release;
+  const gate = new Promise((r) => { release = r; });
+  const p = await open3({ gate });
+  type(p, cell(p, 12, 4), '1100');
+  submit(p, '#form-price'); await settle();
+  assert.equal(p.client.writes.length, 1);
+  assert.equal(p.doc.getElementById('p-save').disabled, true);
+  type(p, cell(p, 13, 4), '1150');                                   // typing must not re-enable the button
+  assert.equal(p.doc.getElementById('p-save').disabled, true);
+  submit(p, '#form-price'); submit(p, '#form-price'); await settle();
+  assert.equal(p.client.writes.length, 1, 'no second insert while the first is in flight');
+  release(); await settle(); await settle();
+  assert.match(p.doc.querySelector('#form-price .status').textContent, /Saqlandi/);
+  type(p, cell(p, 13, 4), '1150');
+  assert.equal(p.doc.getElementById('p-save').disabled, false, 'usable again after the save');
 });

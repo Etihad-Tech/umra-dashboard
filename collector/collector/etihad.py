@@ -17,16 +17,27 @@ from __future__ import annotations
 import re
 from datetime import date, timedelta
 
-from .mandarin import Packet, ParseResult, SchemaError, parse_date, parse_price
+from .mandarin import Packet, ParseResult, SchemaError, _to_int, parse_date, parse_price, require_some_price
 
 ROOM_TO_PAX = {"quad": 4, "trpl": 3, "dbl": 2, "sngl": 1}
 WEEKDAYS = {"mon": 0, "tue": 1, "wed": 2, "thu": 3, "fri": 4, "sat": 5, "sun": 6}
 MAX_BAND_DAYS = 800          # a band longer than this is certainly a data error
+MAX_NIGHTS = 90              # an Umra trip longer than this is certainly a data error
 
 
 def _prices(raw) -> dict[int, int | None]:
     raw = raw if isinstance(raw, dict) else {}
     return {pax: parse_price(raw.get(room)) for room, pax in ROOM_TO_PAX.items()}
+
+
+def _nights(value):
+    """None = not given (allowed); a positive whole number up to MAX_NIGHTS; False = given but unusable."""
+    if value is None or value == "":
+        return None
+    if isinstance(value, float) and not value.is_integer():
+        return False
+    n = _to_int(value)
+    return n if n is not None and n <= MAX_NIGHTS else False
 
 
 def _range_from_text(text) -> tuple[date, date] | None:
@@ -60,7 +71,10 @@ def parse_packages(data) -> ParseResult:
             result.invalid += 1
             continue
         pkg_id = str(raw["id"]).strip()
-        nights = raw.get("nights") if isinstance(raw.get("nights"), int) else None
+        nights = _nights(raw.get("nights"))
+        if nights is False:                                 # 0, negative, true/false, 12.5, "abc": this package is
+            result.invalid += 1                             # broken (counted), the rest of the feed is still synced
+            continue
         weekday = WEEKDAYS.get(str(raw.get("depday") or "").strip().lower()[:3])
         tier = str(raw.get("tier") or "").strip().upper() or None
 
@@ -97,4 +111,5 @@ def parse_packages(data) -> ParseResult:
         raise SchemaError(f"etihad: {result.invalid} of {result.total} packages are invalid")
     if not result.packets:
         raise SchemaError("etihad: 0 usable departures")
+    require_some_price(result, "etihad")
     return result

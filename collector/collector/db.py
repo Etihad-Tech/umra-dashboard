@@ -11,6 +11,7 @@ from datetime import date, datetime, timezone
 import requests
 
 PAGE = 1000
+MAX_PAGES = 5000  # 5 million rows: only reached if the server ignored offset (would otherwise loop forever)
 CHUNK = 150  # ids per "in.(...)" filter, keeps URLs short
 
 
@@ -23,6 +24,7 @@ class State:
     packages: dict = field(default_factory=dict)       # (external_key, city) -> row
     departures: dict = field(default_factory=dict)     # (package_id, date) -> row
     last_prices: dict = field(default_factory=dict)    # (departure_id, pax) -> price | None
+    last_known_prices: dict = field(default_factory=dict)  # (departure_id, pax) -> last NON-NULL price
     package_city: dict = field(default_factory=dict)   # package_id -> city
     manual_prices: dict = field(default_factory=dict)  # (departure_id, pax) -> price of the ACTIVE manual entry
 
@@ -48,15 +50,16 @@ class RestStore:
             raise DbError(f"{method} {path} -> HTTP {r.status_code}: {r.text[:300]}")
         return r.json() if r.text else None
 
-    def _select_all(self, table: str, params: dict) -> list[dict]:
+    def _select_all(self, table: str, params: dict, order: str = "id.asc") -> list[dict]:
+        """Every row, page by page. Pages need a stable order (`order`, unless params has its own), and the
+        loop stops only on an EMPTY page: a server row cap below PAGE must not look like the last page."""
         rows: list[dict] = []
-        offset = 0
-        while True:
-            page = self._request("GET", table, params={**params, "limit": PAGE, "offset": offset})
-            rows.extend(page)
-            if len(page) < PAGE:
+        for _ in range(MAX_PAGES):
+            page = self._request("GET", table, params={"order": order, **params, "limit": PAGE, "offset": len(rows)})
+            if not page:
                 return rows
-            offset += PAGE
+            rows.extend(page)
+        raise DbError(f"GET {table}: more than {MAX_PAGES} pages")
 
     @staticmethod
     def _chunks(items: list, size: int = CHUNK):
@@ -108,7 +111,7 @@ class RestStore:
 
     # ---- reference data --------------------------------------------------
     def category_map(self) -> dict[str, str]:
-        return {r["raw"]: r["tier"] for r in self._select_all("category_map", {"select": "raw,tier"})}
+        return {r["raw"]: r["tier"] for r in self._select_all("category_map", {"select": "raw,tier"}, order="raw.asc")}
 
     # ---- state -----------------------------------------------------------
     def load_state(self, company_id: str) -> State:
@@ -132,6 +135,8 @@ class RestStore:
                 "order": "seen_at.desc,id.desc"})
             for r in rows:  # newest first: the first row per key is the last known price
                 st.last_prices.setdefault((r["departure_id"], r["pax"]), r["price_usd"])
+                if r["price_usd"] is not None:
+                    st.last_known_prices.setdefault((r["departure_id"], r["pax"]), r["price_usd"])
         # active manual prices (not cleared, not expired): a different automatic price next to them is a conflict
         now = _now()
         for chunk in self._chunks(sorted(dep_ids)):
@@ -158,10 +163,11 @@ class RestStore:
         rows = self._request("GET", "app_settings", params={"key": f"eq.{key}", "select": "value"})
         return rows[0]["value"] if rows else None
 
-    def _by_ids(self, table: str, ids, select: str, column: str = "id") -> list[dict]:
+    def _by_ids(self, table: str, ids, select: str, column: str = "id", order: str = "id.asc") -> list[dict]:
         out: list[dict] = []
         for chunk in self._chunks(sorted({i for i in ids if i is not None})):
-            out.extend(self._select_all(table, {column: f"in.({','.join(map(str, chunk))})", "select": select}))
+            out.extend(self._select_all(table, {column: f"in.({','.join(map(str, chunk))})", "select": select},
+                                        order=order))
         return out
 
     def event_context(self, events: list[dict]) -> dict:
@@ -183,7 +189,8 @@ class RestStore:
             our_deps = [d for d in self._by_ids("departures", ours.keys(), "id,date,package_id", column="package_id")
                         if str(d["date"]) in wanted_dates]
             prices = {(r["departure_id"], r["pax"]): r["price_usd"] for r in self._by_ids(
-                "price_current", (d["id"] for d in our_deps), "departure_id,pax,price_usd", column="departure_id")}
+                "price_current", (d["id"] for d in our_deps), "departure_id,pax,price_usd", column="departure_id",
+                order="departure_id.asc,pax.asc")}   # a view: no id column
             for m in matches:
                 for d in our_deps:
                     if d["package_id"] != m["our_package_id"]:

@@ -18,7 +18,9 @@ Page: `kiritish.html` (editors and admins only; viewers see "no access"). Same l
 5. The bar at the bottom says how many changes will be saved; pick how long the price is valid (7/14/30 days), press "Saqlash".
 
 "One price for all dates": type it above the table, press "Hammasiga qo'yish" — it only fills the cells (sold-out dates are skipped); nothing is saved until "Saqlash".
-A price more than 30% away from the current one asks for confirmation. Service worker is `umra-v6`.
+A price more than 30% away from the current one asks for confirmation. While a save is on its way the button stays
+disabled (no double insert). "Upcoming" dates use today's date in Tashkent. On the dashboard a manual price carries
+the badge «qo'lda kiritilgan». Service worker is `umra-v7`.
 
 ## Rules enforced by the database (migration 6), not by the page
 - Editors can only INSERT manual rows (`is_manual = true`) and cannot edit or delete automatic ones.
@@ -32,5 +34,5 @@ A price more than 30% away from the current one asks for confirmation. Service w
 
 ## Deploy order
 1. Review and apply `supabase/migrations/20261108000006_manual_packages.sql` in the Supabase SQL Editor.
-2. Publish the site. The service worker is `umra-v4`, so browsers pick up the new page.
+2. Publish the site (`DEPLOY.md`, "Update"). Every page file is revalidated on load and the service worker is `umra-v7`, so browsers pick up the new page.
 3. Give people the `editor` role (see `supabase/AUTH.md`).

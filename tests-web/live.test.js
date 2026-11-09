@@ -213,9 +213,10 @@ test('index.html and the service worker only reference files that exist; old pri
     .concat([...sw.matchAll(/'\.\/([^']+\.(?:js|html|png|webmanifest))'/g)].map((m) => m[1]));
   assert.ok(refs.length > 8);
   refs.forEach((f) => assert.ok(fs.existsSync(path.join(ROOT, f)), f + ' is referenced but missing'));
-  ['competitors.js', 'prices.js', 'events.js', 'info.js', 'packages.js'].forEach((f) =>
+  ['competitors.js', 'prices.js', 'events.js', 'info.js', 'packages.js', 'services.js'].forEach((f) =>
     assert.ok(!fs.existsSync(path.join(ROOT, 'data', f)), 'data/' + f + ' must be deleted'));
-  assert.ok(!/data\/(competitors|prices|events|info|packages)\.js/.test(html + sw));
+  assert.ok(!/data\/(competitors|prices|events|info|packages|services)\.js/.test(html + sw));
+  assert.ok(refs.includes('sw-register.js'), 'the service worker is registered from a file (no inline script)');
 });
 
 test('the page stays hidden behind a loading note until live.js has answered (success or failure)', () => {
@@ -258,4 +259,74 @@ test('liveSvc: Mandarin hotels, airline and trains become the services table dat
   assert.equal(s.train, 1);
   assert.equal(L.liveSvc({ hotels: [], services: { days_label: '9 kecha' } }), null);
   assert.equal(L.liveSvc({}), null);
+});
+
+// ---- review fixes: manual badge, services from Supabase, card texts
+test('manual prices are flagged per date and pax (dashboard shows "qo\'lda kiritilgan")', () => {
+  const a = weekly(1, '2026-11-12', 2, [1890, 1990, 2290, 3250]);
+  const b = weekly(2, '2026-11-12', 2, [2100, 2200, 2400, null]);
+  a.pr.find((r) => r.departure_id === a.deps[1].id && r.pax === 4).is_manual = true;
+  b.pr.find((r) => r.departure_id === b.deps[0].id && r.pax === 3).is_manual = true;
+  const m = live.buildModel({ today: TODAY, packages: [pkg(1, 'B', 'swiss10', { tier: 'premium' }), pkg(2, 'S', 'prem', { tier: 'premium' })],
+                              departures: [].concat(a.deps, b.deps), prices: [].concat(a.pr, b.pr), sources: [], meta: {} });
+  assert.deepStrictEqual(m.etihad[0].man, { '2026-11-19': { 4: true } });
+  assert.deepStrictEqual(m.allpk[0].man, { '2026-11-12': { 3: true } });
+  assert.deepStrictEqual(m.svc, { B: {}, S: {}, F: {} }, 'no services row -> empty tables, not an error');
+});
+
+test('load: price_current is read with is_manual; services come from app_settings and are optional', async () => {
+  const svc = { B: { swiss10: { air: 'TAS → MED' } }, S: { 'Safo Premium': { meal: 2 } }, X: { junk: 1 } };
+  const c = fakeClient({ packages: [], departures: [], price_current: [], sources: [],
+                         app_settings: [{ key: live.SERVICES_KEY, value: svc }] });
+  const m = await live.load(c, {}, Date.parse('2026-11-09T10:00:00Z'));
+  assert.deepStrictEqual(m.svc, { B: svc.B, S: svc.S, F: {} });
+  const ask = c.calls.find((x) => x.table === 'app_settings');
+  assert.deepStrictEqual(ask.filters, [['eq', 'key', 'package_services']]);
+  const src = fs.readFileSync(path.join(ROOT, 'live.js'), 'utf8');
+  assert.match(src, /'price_current', 'departure_id,pax,price_usd,is_manual'/);
+  const denied = fakeClient({ packages: [], departures: [], price_current: [], sources: [], app_settings: new Error('permission denied') });
+  assert.deepStrictEqual((await live.load(denied, {})).svc, { B: {}, S: {}, F: {} }, 'an unreadable services row does not break the page');
+});
+
+test('page: manual values carry the "qo\'lda kiritilgan" badge in cards, tiles, the date table and the bar hints', () => {
+  const a = weekly(1, '2026-11-12', 2, [1890, 1990, 2290, 3250]);
+  const b = weekly(2, '2026-11-12', 2, [2100, 2200, 2400, null]);
+  a.pr.forEach((r) => { if (r.departure_id === a.deps[0].id && r.pax === 4) r.is_manual = true; });
+  b.pr.forEach((r) => { if (r.departure_id === b.deps[0].id && r.pax === 4) r.is_manual = true; });
+  const U = live.buildModel({ today: TODAY, packages: [pkg(1, 'B', 'swiss10', { tier: 'premium' }), pkg(2, 'S', 'prem', { tier: 'premium' })],
+                              departures: [].concat(a.deps, b.deps), prices: [].concat(a.pr, b.pr), sources: [], meta: {} });
+  U.loaded = true;
+  const v = loadComponent(U).inst.renderVals();
+  assert.strictEqual(v.rows[0].mB, true); assert.strictEqual(v.rows[0].mS, true);
+  assert.strictEqual(v.rows[1].mB, false, 'the next week is automatic');
+  assert.strictEqual(v.cards[0].manual, true);
+  assert.ok(v.tiles.find((t) => t.tag === 'ETIHAD').manual);
+  assert.match(v.groups[3].cols.find((c) => /^ETIHAD/.test(c.hint)).hint, /qo'lda kiritilgan/);
+  const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+  assert.ok((html.match(/qo'lda kiritilgan<\/span><\/sc-if>/g) || []).length >= 5, 'badge markup in the template');
+});
+
+test('page: a card falls back to the price that exists; no "null kecha"; the real departure weekday', () => {
+  const a = weekly(1, '2026-11-16', 2, [null, null, 2290, 3250]);        // Mondays, only 2- and 1-person prices
+  const U = live.buildModel({ today: TODAY, packages: [pkg(1, 'B', 'mon7', { tier: 'lux', nights: null })],
+                              departures: a.deps, prices: a.pr, sources: [], meta: {} });
+  U.loaded = true;
+  const v = loadComponent(U).inst.renderVals();
+  assert.strictEqual(v.cards[0].price, '$2,290 · 2 kishi');
+  assert.strictEqual(v.cards[0].line, 'dushanba');
+  assert.ok(!/null|undefined/.test(JSON.stringify([v.cards, v.bannerLine, v.ourLine, v.mini])), 'no null/undefined text');
+  assert.strictEqual(v.bannerLine, 'Lux · dushanba');
+  assert.strictEqual(live.normDay('Thursday'), 'thu');
+  assert.strictEqual(live.normDay('payshanba'), '');
+});
+
+test('page: our services come from the imported table, else from what the ETIHAD source sent', () => {
+  const a = weekly(1, '2026-11-12', 1, [1890, 1990, 2290, 3250]);
+  const U = live.buildModel({ today: TODAY, sources: [], meta: {}, departures: a.deps, prices: a.pr,
+    packages: [pkg(1, 'B', 'swiss10', { tier: 'premium', hotels: [{ city: 'Makkah', name: 'Swissotel', nights: 5, meal_type: 'BB' }] })] });
+  U.loaded = true;
+  const hotelText = (V) => V.svcRows.find((r) => r.label === 'Makka hotel').cells[0].t1;
+  assert.strictEqual(hotelText(loadComponent(U).inst.renderVals()), 'Swissotel');
+  U.svc = { B: { swiss10: { air: 'TAS → MED', hot: [['Makka', 'Swissotel Makkah', 5, 1]], train: 1 } }, S: {}, F: {} };
+  assert.strictEqual(hotelText(loadComponent(U).inst.renderVals()), 'Swissotel Makkah');
 });

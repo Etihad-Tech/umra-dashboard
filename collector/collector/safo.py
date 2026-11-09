@@ -1,9 +1,14 @@
 """Safo Marva Tour source.
 
 The public Safo site loads its packages in the browser from its own Supabase REST API, using a
-PUBLIC (anon) key embedded in the page. We do exactly what the page does:
+PUBLIC (anon) key embedded in the page. We do what the page does:
     GET {supabase}/rest/v1/landing_packages?select=*&is_active=eq.true
-and nothing else (no other tables, no probing).
+and nothing else (no other tables, no probing). We add order=id.asc + limit/offset so the rows come in a
+stable order and a server row cap (1000 by default) can never cut the list short silently.
+
+Requests per run (not one, by design): the page itself, up to 15 of the site's own scripts (the key and
+the API address may live in a script), then the data pages (normally one page + one empty page that
+confirms the end). A failed attempt repeats all of it, up to 3 attempts.
 
 The site address comes from the SAFO_SITE_URL environment variable (competitor addresses are not
 kept in this public repository). The key is read from the page at run time and is never stored.
@@ -17,9 +22,12 @@ from datetime import date
 
 import requests
 
-from .mandarin import Packet, ParseResult, SchemaError, parse_date, parse_price
+from .mandarin import Packet, ParseResult, SchemaError, parse_date, parse_price, require_some_price
 
 MAX_BYTES = 5 * 1024 * 1024
+PAGE = 1000
+MAX_PAGES = 20           # 20,000 rows: far above a landing page; more means the server ignores paging
+PAST_GRACE_DAYS = 45     # a yearless date that passed at most this long ago keeps that (past) year
 _SUPABASE_URL = re.compile(r"https://[a-z0-9]{15,30}\.supabase\.co")
 # the page may point at a gateway on its OWN domain instead: var SUPABASE_URL = '/gw';
 _REL_URL = re.compile(r"""SUPABASE_URL\s*=\s*['"](/[A-Za-z0-9_\-]+(?:/[A-Za-z0-9_\-]+)*)['"]""")
@@ -83,35 +91,62 @@ def discover(site_url: str, session: requests.Session | None = None) -> tuple[st
         raise SchemaError(f"cannot read credentials: {type(e).__name__}")
 
 
-def fetch_rows(supabase_url: str, key: str, session: requests.Session | None = None) -> list:
+def fetch_rows(supabase_url: str, key: str, session: requests.Session | None = None, page_size: int = PAGE) -> list:
+    """All active rows, in id order. Stops only on an EMPTY page (a server cap below page_size cannot cut the
+    list short). If the server ignores offset (the same rows again), the rows already read are the full list."""
     s = session or requests.Session()
-    r = s.get(f"{supabase_url}/rest/v1/landing_packages",
-              params={"select": "*", "is_active": "eq.true"},
-              headers={"apikey": key, "Authorization": f"Bearer {key}",
-                       "User-Agent": "umra-price-monitor/1.0"}, timeout=30)
-    r.raise_for_status()
-    if len(r.content) > MAX_BYTES:
-        raise SchemaError("response is unexpectedly large")
-    data = r.json()
-    if not isinstance(data, list):
-        raise SchemaError("landing_packages did not return a list")
-    return data
+    rows: list = []
+    seen: set = set()
+    for _ in range(MAX_PAGES):
+        r = s.get(f"{supabase_url}/rest/v1/landing_packages",
+                  params={"select": "*", "is_active": "eq.true", "order": "id.asc",
+                          "limit": page_size, "offset": len(rows)},
+                  headers={"apikey": key, "Authorization": f"Bearer {key}",
+                           "User-Agent": "umra-price-monitor/1.0"}, timeout=30)
+        r.raise_for_status()
+        if len(r.content) > MAX_BYTES:
+            raise SchemaError("response is unexpectedly large")
+        data = r.json()
+        if not isinstance(data, list):
+            raise SchemaError("landing_packages did not return a list")
+        ids = {x.get("id") for x in data if isinstance(x, dict) and x.get("id") is not None}
+        if not data or (ids and ids <= seen):
+            return rows
+        seen |= ids
+        rows.extend(data)
+        if len(data) > page_size:       # the server ignored limit: it sent everything at once
+            return rows
+    raise SchemaError(f"landing_packages: more than {MAX_PAGES} pages")
 
 
 # ----------------------------------------------------------------- parsing
-def _next_occurrence(day: int, month: int, on_or_after: date) -> date | None:
-    for year in range(on_or_after.year, on_or_after.year + 5):   # 5 years covers 29.02
+def _occurrence(day: int, month: int, today: date, grace_days: int = 0) -> date | None:
+    """The date of day.month nearest to `today` in the sense of the timetable:
+    the most recent past one if it is at most `grace_days` old (a departure that left recently and is still
+    listed keeps its year, also across New Year: '28.12' on 02.01 is LAST December), otherwise the next one
+    on or after today."""
+    if grace_days:
+        for year in range(today.year, today.year - 5, -1):   # 5 years covers 29.02
+            try:
+                d = date(year, month, day)
+            except ValueError:
+                continue
+            if d <= today:
+                if (today - d).days <= grace_days:
+                    return d
+                break
+    for year in range(today.year, today.year + 5):
         try:
             d = date(year, month, day)
         except ValueError:
             continue
-        if d >= on_or_after:
+        if d >= today:
             return d
     return None
 
 
-def parse_free_date(text, on_or_after: date) -> date | None:
-    """'18.11.2026' / '18.11.26' / ISO -> exact date.  '17.09' -> next occurrence on/after `on_or_after`."""
+def parse_free_date(text, today: date, grace_days: int = PAST_GRACE_DAYS) -> date | None:
+    """'18.11.2026' / '18.11.26' / ISO -> exact date.  '17.09' -> see _occurrence (no year given)."""
     if not text:
         return None
     t = str(text).strip()
@@ -126,11 +161,12 @@ def parse_free_date(text, on_or_after: date) -> date | None:
             return None
     m = re.fullmatch(r"(\d{1,2})[./](\d{1,2})", t)
     if m:
-        return _next_occurrence(int(m.group(1)), int(m.group(2)), on_or_after)
+        return _occurrence(int(m.group(1)), int(m.group(2)), today, grace_days)
     return None
 
 
 def parse_rows(rows, today: date) -> ParseResult:
+    """`today` is the Tashkent date (clock.today_tashkent)."""
     if not isinstance(rows, list):
         raise SchemaError("rows must be a list")
     result = ParseResult(total=len(rows))
@@ -150,7 +186,7 @@ def parse_rows(rows, today: date) -> ParseResult:
             result.duplicates += 1
             continue
         seen.add((section, start))
-        end = parse_free_date(raw.get("date_return"), start)
+        end = parse_free_date(raw.get("date_return"), start, grace_days=0)   # next one on/after the departure
         if end is not None and end < start:
             end = None
         prices = {pax: parse_price(raw.get(f"price_{pax}")) for pax in (2, 3, 4)}  # no 1-person price
@@ -165,4 +201,5 @@ def parse_rows(rows, today: date) -> ParseResult:
         raise SchemaError(f"{result.invalid} of {result.total} rows are invalid")
     if not result.packets:
         raise SchemaError("0 usable rows")
+    require_some_price(result, "landing_packages")
     return result

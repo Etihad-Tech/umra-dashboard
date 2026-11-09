@@ -31,6 +31,8 @@ class FakeStore:
             st.departures[(d["package_id"], date.fromisoformat(d["date"]))] = dict(d)
         for s in reversed(self.snapshots):  # newest first
             st.last_prices.setdefault((s["departure_id"], s["pax"]), s["price_usd"])
+            if s["price_usd"] is not None:
+                st.last_known_prices.setdefault((s["departure_id"], s["pax"]), s["price_usd"])
         st.manual_prices = dict(self.manual_prices)
         return st
 

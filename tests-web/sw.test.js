@@ -59,6 +59,22 @@ test('POST is ignored', () => {
 
 test('new files are in the precache list and the cache version was bumped', () => {
   const src = fs.readFileSync(path.join(__dirname, '..', 'sw.js'), 'utf8');
-  for (const f of ['./auth.js', './config.js', './vendor/supabase.js']) assert.ok(src.includes(f), f);
-  assert.ok(!/VERSION = 'umra-v2'/.test(src));
+  for (const f of ['./auth.js', './config.js', './vendor/supabase.js', './sw-register.js']) assert.ok(src.includes(f), f);
+  assert.ok(!src.includes('./data/'), 'no data files in the app shell');
+  const v = /VERSION = 'umra-v(\d+)'/.exec(src);
+  assert.ok(v && +v[1] >= 7, 'VERSION bumped for this release');
+});
+
+test('install precaches the app shell past the HTTP cache (cache: reload), so it never stores an old copy', async () => {
+  let added = null, waited = null;
+  const handlers = {};
+  const self = { location: { origin: 'https://site.example' }, addEventListener: (n, f) => { handlers[n] = f; },
+                 skipWaiting: () => {}, clients: { claim: () => {} } };
+  class Request { constructor(url, init) { this.url = url; this.cache = init && init.cache; } }
+  const caches = { open: async () => ({ addAll: async (reqs) => { added = reqs; } }) };
+  vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'sw.js'), 'utf8'), vm.createContext({ self, caches, URL, Request }));
+  handlers.install({ waitUntil: (p) => { waited = p; } });
+  await waited;
+  assert.ok(added.length > 10);
+  assert.ok(added.every((r) => r instanceof Request && r.cache === 'reload'));
 });

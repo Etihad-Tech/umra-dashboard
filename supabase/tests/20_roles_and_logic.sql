@@ -47,12 +47,7 @@ begin
   select count(*) into n from public.manual_entries where created_by = '00000000-0000-0000-0000-0000000000e1';
   assert n = 1, 'editor must be able to add a manual entry (created_by defaults to themselves)';
 
-  begin
-    insert into public.manual_entries (departure_id, pax, price_usd, created_by)
-    values (v_dep, 3, 1800, '00000000-0000-0000-0000-0000000000a1');
-    assert false, 'editor created an entry in someone else''s name';
-  exception when insufficient_privilege then null;
-  end;
+  -- an entry in someone else's name is impossible: the server writes created_by (tested in 50_review_fixes)
 
   begin
     update public.manual_entries set price_usd = 1 + 100 where created_by = '00000000-0000-0000-0000-0000000000e1';

@@ -5,7 +5,8 @@
 Rules (TASK section 9.2):
   * one message per company per pass (a run that changes 30 prices sends ONE message);
   * idempotent: only events with telegram_sent_at IS NULL are sent, and it is set right after Telegram accepts the message;
-  * 429 -> wait `retry_after` and retry; any other failure leaves the events unsent for the next pass;
+  * 429 -> wait `retry_after` (up to 60 s) and retry; a longer wait ends the pass and the events stay unsent for the
+    next cycle; any other failure leaves the events unsent for the next pass;
   * the bot token lives ONLY in the environment (TELEGRAM_BOT_TOKEN). It is never logged: error messages never contain
     the request URL, because that URL contains the token.
 Chat id: app_settings key "telegram" -> {"chat_id": "...", "enabled": true}; falls back to env TELEGRAM_CHAT_ID.
@@ -15,6 +16,7 @@ from __future__ import annotations
 
 import argparse
 import logging
+import math
 import os
 import sys
 import time
@@ -30,6 +32,9 @@ COMPANY_ORDER = ["B", "S", "F", None]
 TIER = {"premium": "Premium", "lux": "Lux", "comfort": "Komfort", "econom": "Ekonom"}
 MAX_MESSAGE = 3800            # Telegram's limit is 4096 characters
 PER_PASS = 500
+MAX_RETRY_WAIT = 60           # seconds; Telegram asking for longer = stop this pass, try again next cycle
+FIELD = {"external_key": "kod", "name": "nom", "category_raw": "kategoriya", "tier": "daraja", "nights": "tun",
+         "departure_city": "shahar", "active": "faol", "return_date": "qaytish", "sold_out": "sotilib bo'lgan"}
 
 
 class TelegramError(Exception):
@@ -102,12 +107,27 @@ def format_event(ev: dict, ctx: dict) -> str:
         if new.get("note"):
             text += f" — {str(new['note'])[:100]}"
         return text
+    if kind == "manual_conflict" and (new.get("takeover") or old.get("takeover")):
+        return _takeover_text(where, old, new)
     if kind == "manual_conflict":
         text = f"⚠️ {where} — qo'lda kiritilgan narx saytdagidan farq qiladi"
         if old.get("price_usd") and new.get("price_usd"):
             text += f" ({new.get('pax')} kishi): qo'lda {money(old['price_usd'])}, saytda {money(new['price_usd'])}"
         return text
     return f"ℹ️ {where} — {kind}"
+
+
+def _takeover_text(where: str, old: dict, new: dict) -> str:
+    """A hand-added package/date now comes from the source: say so, and what the source changed."""
+    what = "paket" if new.get("takeover") == "package" else "sana"
+    text = f"🔄 {where} — qo'lda qo'shilgan {what} endi saytda bor, sayt ma'lumotlari olindi"
+    if new.get("departures"):
+        text += f" ({new['departures']} ta sana)"
+    changes = [f"{FIELD.get(k, k)}: {old.get(k)} → {new.get(k)}" for k in FIELD
+               if k in new and k in old and old.get(k) != new.get(k)]
+    if changes:
+        text += "; " + ", ".join(changes)[:300]
+    return text
 
 
 def build_messages(events: list[dict], ctx: dict) -> list[tuple[str, list[int]]]:
@@ -137,6 +157,20 @@ def build_messages(events: list[dict], ctx: dict) -> list[tuple[str, list[int]]]
 
 
 # --------------------------------------------------------------------- sending
+def retry_after_seconds(body: dict, headers=None) -> float:
+    """Telegram's 429 says how long to wait: body parameters.retry_after (int, float or text), else the
+    Retry-After header. Unreadable -> 1 s."""
+    params = body.get("parameters")
+    for raw in (params.get("retry_after") if isinstance(params, dict) else None, (headers or {}).get("Retry-After")):
+        try:
+            value = float(raw)
+        except (TypeError, ValueError):
+            continue
+        if not math.isnan(value) and value >= 0:
+            return value
+    return 1.0
+
+
 class Telegram:
     def __init__(self, token: str, chat_id: str, session: requests.Session | None = None,
                  sleep=time.sleep, max_attempts: int = 4):
@@ -158,8 +192,13 @@ class Telegram:
                 body = r.json()
             except ValueError:
                 body = {}
+            if not isinstance(body, dict):
+                body = {}
             if r.status_code == 429:
-                self.sleep(min(int((body.get("parameters") or {}).get("retry_after", 1)), 60) + 1)
+                wait = retry_after_seconds(body, getattr(r, "headers", None))
+                if wait > MAX_RETRY_WAIT:
+                    raise TelegramError(f"telegram rate limit: asked to wait {int(wait)} s, events stay for the next cycle")
+                self.sleep(math.ceil(wait) + 1)
                 continue
             raise TelegramError(f"telegram HTTP {r.status_code}: {str(body.get('description', ''))[:100]}")
         raise TelegramError("telegram rate limit: giving up for this pass")

@@ -61,8 +61,26 @@ class Parse(unittest.TestCase):
 
     def test_zero_or_missing_price_is_none(self):
         r = etihad.parse_packages(feed(pkg(bands=[{"from": "2026-09-03", "to": "2026-09-03",
-                                                   "prices": {"dbl": 0, "quad": None}}])))
+                                                   "prices": {"dbl": 0, "quad": None}}]), pkg(id="priced")))
         self.assertEqual(r.packets[0].prices, {4: None, 3: None, 2: None, 1: None})
+
+    def test_no_price_anywhere_is_failure(self):
+        with self.assertRaises(SchemaError):
+            etihad.parse_packages(feed(pkg(bands=[{"from": "2026-09-03", "to": "2026-09-03", "prices": {}}])))
+
+    def test_bad_nights_skip_only_that_package(self):
+        for bad in (0, -3, True, False, 12.5, "abc", 200):
+            r = etihad.parse_packages(feed(pkg(id="bad", nights=bad), pkg(id="good"), pkg(id="good2")))
+            self.assertEqual(r.invalid, 1, bad)
+            self.assertEqual({p.family for p in r.packets}, {"good", "good2"}, bad)
+            self.assertTrue(all(p.return_date > p.date for p in r.packets))
+
+    def test_missing_or_numeric_text_nights_are_fine(self):
+        r = etihad.parse_packages(feed(pkg(id="a", nights=None), pkg(id="b", nights="9"), pkg(id="c", nights=9.0)))
+        by = {p.family: p for p in r.packets}
+        self.assertEqual((by["a"].nights, by["a"].return_date), (None, None))
+        self.assertEqual((by["b"].nights, by["c"].nights), (9, 9))
+        self.assertEqual(r.invalid, 0)
 
     def test_bad_packages_are_counted(self):
         r = etihad.parse_packages(feed(pkg(), pkg(id="b"), {"name": "no id"}))

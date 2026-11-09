@@ -30,8 +30,8 @@ def ev(i, kind, company="F", **kw):
 
 
 class Resp:
-    def __init__(self, status=200, body=None):
-        self.status_code, self._body = status, body or {}
+    def __init__(self, status=200, body=None, headers=None):
+        self.status_code, self._body, self.headers = status, body or {}, headers or {}
 
     def json(self):
         return self._body
@@ -126,6 +126,35 @@ class Sender(unittest.TestCase):
         self.assertEqual(sleeps, [8])
         self.assertEqual(len(s.calls), 2)
 
+    def test_retry_after_as_float_text_or_header(self):
+        for body, headers, want in [({"parameters": {"retry_after": 2.5}}, {}, 4),
+                                    ({"parameters": {"retry_after": "7"}}, {}, 8),
+                                    ({"parameters": {"retry_after": "soon"}}, {}, 2),     # unreadable -> 1 s
+                                    ({}, {"Retry-After": "3"}, 4),
+                                    ({"parameters": "x"}, {}, 2)]:
+            sleeps = []
+            s = FakeSession(Resp(429, body, headers), Resp(200))
+            Telegram(TOKEN, "-100", session=s, sleep=sleeps.append).send("hi")
+            self.assertEqual(sleeps, [want], body or headers)
+
+    def test_a_long_retry_after_ends_the_pass_without_waiting(self):
+        sleeps = []
+        s = FakeSession(Resp(429, {"parameters": {"retry_after": 61}}))
+        with self.assertRaises(TelegramError) as cm:
+            Telegram(TOKEN, "-100", session=s, sleep=sleeps.append).send("hi")
+        self.assertEqual((sleeps, len(s.calls)), ([], 1))
+        self.assertIn("next cycle", str(cm.exception))
+
+    def test_a_non_object_error_body_does_not_crash(self):
+        class ListResp(Resp):
+            def json(self):
+                return ["x"]
+        sleeps = []
+        Telegram(TOKEN, "-100", session=FakeSession(ListResp(429), Resp(200)), sleep=sleeps.append).send("hi")
+        self.assertEqual(sleeps, [2])
+        with self.assertRaises(TelegramError):
+            Telegram(TOKEN, "-100", session=FakeSession(ListResp(500))).send("hi")
+
     def test_endless_429_gives_up(self):
         s = FakeSession(*[Resp(429, {"parameters": {"retry_after": 1}})] * 4)
         with self.assertRaises(TelegramError):
@@ -181,6 +210,13 @@ class Pass(unittest.TestCase):
         self.assertTrue(all(e["telegram_sent_at"] is None for e in s.events))
         res = notify_pass(s, Telegram(TOKEN, "-100", session=FakeSession(Resp(200))))
         self.assertEqual(res["events"], 2)
+
+    def test_a_long_rate_limit_leaves_the_events_for_the_next_cycle(self):
+        s = self.store_with_changes()
+        res = notify_pass(s, Telegram(TOKEN, "-100", session=FakeSession(Resp(429, {"parameters": {"retry_after": 300}})),
+                                      sleep=lambda x: self.fail("must not wait 300 s")))
+        self.assertTrue(res["failed"])
+        self.assertTrue(all(e["telegram_sent_at"] is None for e in s.events))
 
     def test_second_message_failing_keeps_only_the_first_marked(self):
         s = FakeStore()
@@ -240,3 +276,25 @@ class ManualConflictText(unittest.TestCase):
         txt = format_event(ev, {"packages": {}, "departures": {}, "our_prices": {}})
         self.assertIn("$1,000", txt)
         self.assertIn("$1,090", txt)
+
+
+class TakeoverText(unittest.TestCase):
+    def test_package_takeover(self):
+        e = ev(1, "manual_conflict", package_id=1, departure_id=None,
+               old={"takeover": "package", "external_key": "HYATT-09", "name": "typed", "tier": "lux", "nights": 9},
+               new={"takeover": "package", "external_key": "HYATT-09", "name": "Hyatt", "tier": "comfort", "nights": 9,
+                    "departures": 2})
+        txt = format_event(e, CTX)
+        self.assertTrue(txt.startswith("🔄 MANDARIN · Lux · HYATT-09 — qo'lda qo'shilgan paket endi saytda bor"), txt)
+        self.assertIn("(2 ta sana)", txt)
+        self.assertIn("nom: typed → Hyatt", txt)
+        self.assertIn("daraja: lux → comfort", txt)
+        self.assertNotIn("tun:", txt)                              # unchanged fields are not listed
+        self.assertNotIn("narx", txt)                              # not the price-conflict text
+
+    def test_departure_takeover(self):
+        e = ev(1, "manual_conflict", old={"takeover": "departure", "return_date": None, "sold_out": True},
+               new={"takeover": "departure", "return_date": "2026-12-22", "sold_out": False})
+        txt = format_event(e, CTX)
+        self.assertIn("qo'lda qo'shilgan sana endi saytda bor", txt)
+        self.assertIn("sotilib bo'lgan: True → False", txt)

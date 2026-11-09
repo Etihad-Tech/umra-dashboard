@@ -10,11 +10,14 @@ Important facts (see TASK section 8.2):
 """
 from __future__ import annotations
 
+import math
 import re
 from dataclasses import dataclass, field
 from datetime import date, datetime
 
+MIN_PRICE_USD = 100      # an Umra package below this is certainly a parse error ("2 x ...", "12,50")
 MAX_PRICE_USD = 100_000  # anything above is certainly a parse error
+PAX = (4, 3, 2, 1)
 
 
 class SchemaError(Exception):
@@ -45,23 +48,32 @@ class ParseResult:
     duplicates: int = 0         # same family + city + date seen twice (first one wins)
 
 
+# One amount: "1,190" / "1 190" / "1.190" (thousands groups) or "1190", optionally with cents ".00" / ",00".
+_GAP = "[ \u00a0\u202f\u2009]"          # space, no-break space, narrow no-break space, thin space
+_NUMBER = re.compile(r"(?<![\d.,])(?:\d{1,3}(?:(?:%s|[.,])\d{3})+|\d+)(?:[.,]\d{1,2})?(?!\d)" % _GAP)
+
+
+def _in_range(n: int) -> int | None:
+    return n if MIN_PRICE_USD <= n <= MAX_PRICE_USD else None
+
+
 def parse_price(value) -> int | None:
-    """'1,190 $' -> 1190.  Empty, zero or unparseable -> None (never 0)."""
+    """'1,190 $' / '1 190,00 $' -> 1190.  Empty, zero, out of range, unparseable or ambiguous -> None (never 0).
+
+    The text must hold exactly ONE amount: '2 x 1190' or '1190$ / 1290$' is not a price we can trust.
+    """
     if value is None or isinstance(value, bool):
         return None
     if isinstance(value, (int, float)):
-        n = int(round(value))
-        return n if 0 < n <= MAX_PRICE_USD else None
-    m = re.search(r"\d[\d\s,. ]*", str(value))
-    if not m:
+        if isinstance(value, float) and not math.isfinite(value):
+            return None
+        return _in_range(int(round(value)))
+    numbers = _NUMBER.findall(str(value))
+    if len(numbers) != 1:
         return None
-    digits = m.group(0).strip()
-    digits = re.sub(r"\.\d{1,2}$", "", digits)        # drop cents: 1,190.00 -> 1,190
-    digits = re.sub(r"[,.\s ]", "", digits)       # thousands separators
-    if not digits:
-        return None
-    n = int(digits)
-    return n if 0 < n <= MAX_PRICE_USD else None
+    whole = re.sub(r"[.,]\d{1,2}$", "", numbers[0])   # drop cents: 1,190.00 / 1 190,00 -> 1,190 / 1 190
+    digits = re.sub(r"\D", "", whole)                  # thousands separators
+    return _in_range(int(digits)) if digits else None
 
 
 def parse_date(value) -> date | None:
@@ -84,15 +96,19 @@ def _clean(value) -> str | None:
 
 
 def _to_int(value) -> int | None:
+    """A positive whole number, else None. True/False are not numbers here."""
+    if isinstance(value, bool):
+        return None
     try:
         n = int(value)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
         return None
     return n if n > 0 else None
 
 
 def _parse_prices(raw) -> dict[int, int | None]:
-    prices: dict[int, int | None] = {}
+    """Always all four pax: a pax that is no longer listed is "no price" (NULL), not "unchanged"."""
+    prices: dict[int, int | None] = {pax: None for pax in PAX}
     if not isinstance(raw, list):
         return prices
     for item in raw:
@@ -173,4 +189,12 @@ def parse_feed(data, departure_city: str = "TOSHKENT") -> ParseResult:
         raise SchemaError(f"{result.invalid} of {result.total} packets are invalid")
     if not result.packets:
         raise SchemaError(f"0 packets for departure city {wanted}")
+    require_some_price(result, "feed")
     return result
+
+
+def require_some_price(result: ParseResult, what: str) -> None:
+    """Not a single price anywhere = the price fields moved or were renamed. Fail loudly instead of
+    overwriting every known price with NULL."""
+    if not any(v is not None for p in result.packets for v in p.prices.values()):
+        raise SchemaError(f"{what}: no prices in any of {len(result.packets)} packets")

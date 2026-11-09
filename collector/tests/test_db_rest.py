@@ -22,12 +22,39 @@ class FakeSession:
 
 
 class RestStoreTests(unittest.TestCase):
-    def test_pagination_reads_until_short_page(self):
+    def test_pagination_reads_until_an_empty_page(self):
         full = [{"raw": str(i), "tier": "lux"} for i in range(1000)]
-        sess = FakeSession([FakeResponse(data=full), FakeResponse(data=[{"raw": "LAST", "tier": "econom"}])])
+        sess = FakeSession([FakeResponse(data=full), FakeResponse(data=[{"raw": "LAST", "tier": "econom"}]),
+                            FakeResponse(data=[])])
         got = RestStore("https://x.supabase.co", "KEY", session=sess).category_map()
         self.assertEqual(len(got), 1001)
-        self.assertEqual([c[2]["offset"] for c in sess.calls], [0, 1000])
+        self.assertEqual([c[2]["offset"] for c in sess.calls], [0, 1000, 1001])
+        self.assertEqual({c[2]["order"] for c in sess.calls}, {"raw.asc"})       # category_map has no id column
+
+    def test_a_server_cap_below_the_page_size_does_not_cut_the_list(self):
+        # the server returns at most 400 rows per request although 1000 were asked for
+        pages = [[{"id": i, "external_key": f"K{i}", "departure_city": None} for i in range(a, b)]
+                 for a, b in ((0, 400), (400, 800), (800, 850))]
+        sess = FakeSession([FakeResponse(data=pg) for pg in pages] + [FakeResponse(data=[])])
+        store = RestStore("https://x.supabase.co", "K", session=sess)
+        rows = store._select_all("packages", {"select": "*"})
+        self.assertEqual(len(rows), 850)
+        self.assertEqual([c[2]["offset"] for c in sess.calls], [0, 400, 800, 850])
+        self.assertEqual({c[2]["order"] for c in sess.calls}, {"id.asc"})        # stable order for offset paging
+
+    def test_load_state_keeps_the_last_known_price_across_a_null(self):
+        sess = FakeSession([
+            FakeResponse(data=[{"id": 1, "external_key": "A", "departure_city": None, "is_manual": False}]), FakeResponse(data=[]),
+            FakeResponse(data=[{"id": 10, "package_id": 1, "date": "2026-12-01", "active": True}]), FakeResponse(data=[]),
+            FakeResponse(data=[{"departure_id": 10, "pax": 4, "price_usd": None},       # newest first
+                               {"departure_id": 10, "pax": 4, "price_usd": 1000},
+                               {"departure_id": 10, "pax": 4, "price_usd": 1100}]), FakeResponse(data=[]),
+            FakeResponse(data=[]),                                                       # manual_entries
+        ])
+        st = RestStore("https://x.supabase.co", "K", session=sess).load_state("S")
+        self.assertIsNone(st.last_prices[(10, 4)])
+        self.assertEqual(st.last_known_prices[(10, 4)], 1000)
+        self.assertEqual(sess.calls[4][2]["order"], "seen_at.desc,id.desc")             # its own order wins
 
     def test_error_does_not_leak_the_key(self):
         sess = FakeSession([FakeResponse(status=401, data={}, text='{"message":"bad"}')])
@@ -95,13 +122,15 @@ class NotifierQueries(unittest.TestCase):
               "old": {"pax": 4, "price_usd": 2290}, "new": {"pax": 4, "price_usd": 2140}}
         st, sess = self.store(
             FakeResponse(data=[{"id": 1, "external_key": "HYATT-09", "name": "Hyatt", "tier": "lux", "company_id": "F"}]),
-            FakeResponse(data=[{"id": 10, "date": "2026-12-12", "package_id": 1}]),
-            FakeResponse(data=[{"our_package_id": 2, "their_package_id": 1, "active": True}]),
-            FakeResponse(data=[{"id": 2, "name": "Swissotel 10", "external_key": "SWISS-10"}]),
+            FakeResponse(data=[]),
+            FakeResponse(data=[{"id": 10, "date": "2026-12-12", "package_id": 1}]), FakeResponse(data=[]),
+            FakeResponse(data=[{"our_package_id": 2, "their_package_id": 1, "active": True}]), FakeResponse(data=[]),
+            FakeResponse(data=[{"id": 2, "name": "Swissotel 10", "external_key": "SWISS-10"}]), FakeResponse(data=[]),
             FakeResponse(data=[{"id": 20, "date": "2026-12-12", "package_id": 2},
-                               {"id": 21, "date": "2027-01-01", "package_id": 2}]),
-            FakeResponse(data=[{"departure_id": 20, "pax": 4, "price_usd": 1990}]))
+                               {"id": 21, "date": "2027-01-01", "package_id": 2}]), FakeResponse(data=[]),
+            FakeResponse(data=[{"departure_id": 20, "pax": 4, "price_usd": 1990}]), FakeResponse(data=[]))
         ctx = st.event_context([ev])
+        self.assertEqual(sess.calls[-1][2]["order"], "departure_id.asc,pax.asc")       # price_current is a view
         self.assertEqual(ctx["our_prices"], {(1, "2026-12-12", 4): ("Swissotel 10", 1990)})
         self.assertEqual(ctx["packages"][1]["external_key"], "HYATT-09")
 
@@ -110,9 +139,9 @@ class NotifierQueries(unittest.TestCase):
               "old": {"pax": 4, "price_usd": 1}, "new": {"pax": 4, "price_usd": 2}}
         st, _ = self.store(
             FakeResponse(data=[{"id": 1, "external_key": "X", "name": "x", "tier": None, "company_id": "S"}]),
-            FakeResponse(data=[{"id": 10, "date": "2026-12-12", "package_id": 1}]),
-            FakeResponse(data=[{"our_package_id": 2, "their_package_id": 1, "active": False}]),
-            FakeResponse(data=[]), FakeResponse(data=[]), FakeResponse(data=[]))
+            FakeResponse(data=[]),
+            FakeResponse(data=[{"id": 10, "date": "2026-12-12", "package_id": 1}]), FakeResponse(data=[]),
+            FakeResponse(data=[{"our_package_id": 2, "their_package_id": 1, "active": False}]), FakeResponse(data=[]))
         self.assertEqual(st.event_context([ev])["our_prices"], {})
 
 

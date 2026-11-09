@@ -1,6 +1,7 @@
 import copy
 import json
 import unittest
+from datetime import date
 from pathlib import Path
 from unittest import mock
 
@@ -10,12 +11,13 @@ from collector.sync import sync_packets
 from tests.fakes import FakeStore
 
 SAMPLE = json.loads((Path(__file__).parent / "fixtures" / "mandarin_sample.json").read_text())
+TODAY = date(2026, 11, 9)   # Tashkent date the fixture runs on (all fixture departures are in December 2026)
 
 
-def do_sync(store, feed):
+def do_sync(store, feed, today=TODAY):
     parsed = parse_feed(feed, "TOSHKENT")
     run_id = store.start_run(1)
-    return sync_packets(store, store.source, run_id, parsed.packets, "TOSHKENT")
+    return sync_packets(store, store.source, run_id, parsed.packets, "TOSHKENT", today=today)
 
 
 def find_pkg(store, key):
@@ -82,6 +84,24 @@ class SyncTests(unittest.TestCase):
         self.assertEqual((dep["missing_runs"], dep["active"]), (2, False))
         do_sync(s, SAMPLE)                                                   # it came back
         self.assertEqual((dep["missing_runs"], dep["active"]), (0, True))
+
+    def test_pax_dropped_from_the_list_becomes_null(self):
+        s = FakeStore()
+        do_sync(s, SAMPLE)
+        feed = copy.deepcopy(SAMPLE)
+        feed["packets"][2]["prices"] = [x for x in feed["packets"][2]["prices"] if x["pax"] != 1]   # HYATT-09 pax 1
+        st = do_sync(s, feed)
+        self.assertEqual(st.snapshots, 1)
+        self.assertEqual((s.snapshots[-1]["pax"], s.snapshots[-1]["price_usd"]), (1, None))
+
+    def test_a_departure_whose_date_has_come_is_deactivated_silently_at_once(self):
+        s = FakeStore()
+        do_sync(s, SAMPLE)
+        feed = copy.deepcopy(SAMPLE)
+        feed["packets"] = [p for p in feed["packets"] if p.get("family") != "HYATT-09"]      # HYATT-09 = 12.12.2026
+        st = do_sync(s, feed, today=date(2026, 12, 12))
+        dep = next(d for d in s.departures if d["package_id"] == find_pkg(s, "HYATT-09")["id"])
+        self.assertEqual((dep["active"], st.deactivated), (False, 1))
 
     def test_package_fields_updated_when_source_changes(self):
         s = FakeStore()
