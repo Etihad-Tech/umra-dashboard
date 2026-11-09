@@ -15,6 +15,7 @@ class FakeStore:
         self.packages, self.departures, self.snapshots, self.runs, self.events = [], [], [], [], []
         self.source_ok = self.source_failed = 0
         self.settings, self.our_prices = {}, {}
+        self.manual_prices = {}   # (departure_id, pax) -> price of an active manual entry
         self._ids = {"p": 0, "d": 0}
 
     # reference data
@@ -30,6 +31,7 @@ class FakeStore:
             st.departures[(d["package_id"], date.fromisoformat(d["date"]))] = dict(d)
         for s in reversed(self.snapshots):  # newest first
             st.last_prices.setdefault((s["departure_id"], s["pax"]), s["price_usd"])
+        st.manual_prices = dict(self.manual_prices)
         return st
 
     # writes

@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="uz">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A3F31">
+<title>Qo'lda kiritish — Umra narxlari</title>
+<!-- same login gate as the dashboard; the form below stays hidden until the session is checked -->
+<script src="./vendor/supabase.js"></script>
+<script src="./config.js"></script>
+<script src="./auth.js"></script>
+<style>
+  body{margin:0;background:#050D0A;color:#EAF3EF;font-family:Inter,system-ui,-apple-system,Segoe UI,sans-serif}
+  main{max-width:640px;margin:0 auto;padding:56px 16px 40px}
+  h1{font-family:Fraunces,Georgia,serif;color:#D8B15E;font-size:24px;margin:0 0 14px}
+  .tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
+  .tabs button{border:1px solid rgba(255,255,255,.14);background:#0A1A15;color:#EAF3EF;border-radius:999px;padding:8px 14px;font-size:14px;cursor:pointer}
+  .tabs button:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid #D8B15E;outline-offset:2px}
+  .panel{background:#0A1A15;border:1px solid rgba(216,177,94,.25);border-radius:14px;padding:16px}
+  .f{margin-bottom:12px}
+  label{display:block;font-size:12px;color:#9DB8AE;margin-bottom:5px}
+  input,select{width:100%;box-sizing:border-box;padding:11px;border-radius:10px;border:1px solid rgba(255,255,255,.14);background:#06120E;color:#EAF3EF;font-size:16px}
+  button.main{width:100%;padding:13px;border:0;border-radius:10px;background:#D8B15E;color:#0A1A15;font-weight:700;font-size:15px;cursor:pointer}
+  button.main:disabled{opacity:.6}
+  button.small{border:1px solid rgba(255,255,255,.2);background:none;color:#EAF3EF;border-radius:8px;padding:5px 10px;cursor:pointer;margin-left:8px}
+  .cur{font-size:13px;color:#9DB8AE;margin:0 0 12px;min-height:16px}
+  .status{margin-top:12px;font-size:14px;min-height:18px}.ok{color:#7FE3B0}.bad{color:#FF8A80}
+  .list{list-style:none;padding:0;margin:14px 0 0}.list li{padding:10px 0;border-top:1px solid rgba(255,255,255,.1);font-size:14px;line-height:1.4}
+  .list li.conflict{color:#FFD27F}
+</style>
+</head>
+<body>
+<main id="kiritish"></main>
+<script src="./kiritish.js"></script>
+</body>
+</html>

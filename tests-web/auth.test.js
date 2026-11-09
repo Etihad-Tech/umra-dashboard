@@ -156,3 +156,49 @@ test('profile lookup failing with a server error does not open the app', async (
   const { doc } = await boot({ session: SESSION, profile: null, profileError: { status: 503 } });
   assert.ok(locked(doc));
 });
+
+test('after unlock: role and client are exposed, "ready" event fires, editors get a Kiritish link', async () => {
+  const doc = makeDom(), win = fakeWindow(), fake = fakeSupabase({ session: SESSION, profile: { role: 'editor', active: true } });
+  const events = [];
+  win.dispatchEvent = (e) => events.push(e);
+  win.CustomEvent = class { constructor(type, init) { this.type = type; this.detail = init.detail; } };
+  win.location.pathname = '/index.html';
+  const auth = create({ document: doc, window: win, supabase: fake.sdk, config: CONFIG });
+  await auth.start(); await settle();
+  assert.equal(events.length, 1);
+  assert.equal(events[0].type, 'umra:ready');
+  assert.equal(events[0].detail.role, 'editor');
+  assert.equal(auth.ready().role, 'editor');
+  assert.match(doc.getElementById('umra-nav').getAttribute('href'), /kiritish\.html/);
+});
+
+test('viewer gets no Kiritish link', async () => {
+  const { doc } = await boot({ session: SESSION, profile: { role: 'viewer', active: true } });
+  assert.equal(doc.getElementById('umra-nav'), null);
+});
+
+test('QR: a data: URI from Supabase is used as is (not wrapped twice); bare svg is wrapped', async () => {
+  for (const [qr, expect] of [
+    ['data:image/svg+xml;utf-8,<svg xmlns="x"></svg>', 'data:image/svg+xml;utf-8,<svg xmlns="x"></svg>'],
+    ['<svg></svg>', 'data:image/svg+xml;utf8,' + encodeURIComponent('<svg></svg>')],
+  ]) {
+    const doc = makeDom(), win = fakeWindow(), fake = fakeSupabase({
+      session: SESSION, profile: { role: 'admin', active: true }, levels: { currentLevel: 'aal1', nextLevel: 'aal1' } });
+    const orig = fake.sdk.createClient;
+    fake.sdk.createClient = () => {
+      const c = orig();
+      c.auth.mfa.enroll = async () => ({ data: { id: 'f', totp: { qr_code: qr, secret: 'S' } } });
+      return c;
+    };
+    const auth = create({ document: doc, window: win, supabase: fake.sdk, config: CONFIG });
+    await auth.start(); await settle();
+    assert.equal(doc.querySelector('img.qr').getAttribute('src'), expect);
+  }
+});
+
+test('invalid API key is reported as a setup problem, not as a wrong password', async () => {
+  const { doc } = await boot({ session: null, signIn: { error: { status: 401, message: 'Invalid API key' } } });
+  fill(doc, 'umra-email', 'x@y.uz'); fill(doc, 'umra-pass', 'secret');
+  submit(doc, 'form'); await settle();
+  assert.equal(text(doc, 'umra-err'), MSG.badKey);
+});

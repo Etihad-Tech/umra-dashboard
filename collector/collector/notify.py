@@ -103,7 +103,10 @@ def format_event(ev: dict, ctx: dict) -> str:
             text += f" — {str(new['note'])[:100]}"
         return text
     if kind == "manual_conflict":
-        return f"⚠️ {where} — qo'lda kiritilgan narx saytdagidan farq qiladi"
+        text = f"⚠️ {where} — qo'lda kiritilgan narx saytdagidan farq qiladi"
+        if old.get("price_usd") and new.get("price_usd"):
+            text += f" ({new.get('pax')} kishi): qo'lda {money(old['price_usd'])}, saytda {money(new['price_usd'])}"
+        return text
     return f"ℹ️ {where} — {kind}"
 
 

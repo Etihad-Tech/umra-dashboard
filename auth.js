@@ -14,6 +14,7 @@
     badLogin: "Email yoki parol noto'g'ri.",
     inactive: "Hisobingiz faol emas. Administrator bilan bog'laning.",
     network: "Ulanishda xatolik. Internetni tekshirib, qayta urinib ko'ring.",
+    badKey: "Sozlama xatosi: config.js dagi kalit noto'g'ri (publishable/anon kalit kerak).",
     badCode: "Kod noto'g'ri. Qayta urinib ko'ring.",
     loading: 'Yuklanmoqda…'
   };
@@ -21,7 +22,7 @@
 
   function create(deps) {
     var doc = deps.document, win = deps.window, sb = deps.supabase, cfg = deps.config || {};
-    var client = null, timer = null, unlocked = false;
+    var client = null, timer = null, unlocked = false, info = null;
 
     // ---- tiny DOM helper (always textContent, never innerHTML with data) -------------
     function h(tag, attrs, kids) {
@@ -86,10 +87,17 @@
       (doc.body || doc.documentElement).appendChild(root);
       return root;
     }
-    function bar(email) {
+    function bar(email, role) {
       var old = doc.getElementById('umra-auth-bar');
       if (old) old.remove();
+      var onEntry = /kiritish\.html$/.test((win.location && win.location.pathname) || '');
+      var canEdit = role === 'editor' || role === 'admin';
+      var nav = (canEdit || onEntry)
+        ? h('a', { id: 'umra-nav', href: onEntry ? './index.html' : './kiritish.html', text: onEntry ? 'Narxlar' : 'Kiritish',
+                   style: 'color:#D8B15E;text-decoration:none;font-weight:700' })
+        : null;
       var el = h('div', { id: 'umra-auth-bar' }, [
+        nav,
         h('span', { text: email || '' }),
         h('button', { type: 'button', id: 'umra-logout', text: 'Chiqish', on: { click: function () { logout(); } } })
       ]);
@@ -117,7 +125,10 @@
         client.auth.signInWithPassword({ email: email.value.trim(), password: pass.value }).then(function (res) {
           if (res.error) {
             // one message for "no such user" and "wrong password": do not reveal which emails exist
-            err.textContent = (res.error.status && res.error.status >= 500) ? MSG.network : MSG.badLogin;
+            var bad = res.error;
+            // an invalid API key is a setup problem (independent of the user), so it is safe to say so
+            var keyProblem = bad.status === 401 || /api key|apikey/i.test(bad.message || '');
+            err.textContent = keyProblem ? MSG.badKey : (bad.status && bad.status >= 500) ? MSG.network : MSG.badLogin;
             btn.disabled = false; pass.value = '';
             return;
           }
@@ -167,7 +178,10 @@
       }).then(function (r) {
         if (r.error || !r.data) { showLogin(MSG.network); return; }
         var d = r.data;
-        var qr = h('img', { 'class': 'qr', alt: 'QR kod', src: 'data:image/svg+xml;utf8,' + encodeURIComponent((d.totp && d.totp.qr_code) || '') });
+        var raw = (d.totp && d.totp.qr_code) || '';
+        // Supabase already returns a ready data: URI; older versions return bare <svg>. Only an <img> ever shows it (no scripts run).
+        var src = /^data:image\/svg\+xml/i.test(raw) ? raw : 'data:image/svg+xml;utf8,' + encodeURIComponent(raw);
+        var qr = h('img', { 'class': 'qr', alt: 'QR kod', src: src });
         var secret = h('code', { text: (d.totp && d.totp.secret) || '', id: 'umra-secret' });
         var form = codeForm(function (code) {
           return client.auth.mfa.challengeAndVerify({ factorId: d.id, code: code }).then(function (v) {
@@ -214,7 +228,9 @@
             }
             if (prof.role === 'admin' && lvl.currentLevel !== 'aal2') return showEnroll();
             unlock();
-            bar(session.user.email);
+            bar(session.user.email, prof.role);
+            info = { client: client, role: prof.role, userId: session.user.id, email: session.user.email };
+            if (typeof win.dispatchEvent === 'function' && win.CustomEvent) win.dispatchEvent(new win.CustomEvent('umra:ready', { detail: info }));
             if (!timer) timer = win.setInterval(recheck, RECHECK_MS);
           });
         });
@@ -244,7 +260,7 @@
       return proceed();
     }
 
-    return { start: start, logout: logout, _client: function () { return client; } };
+    return { start: start, logout: logout, _client: function () { return client; }, ready: function () { return info; } };
   }
 
   var api = { create: create, MSG: MSG };

@@ -54,7 +54,11 @@ begin
      where n.nspname = 'public' and c.relkind in ('r', 'p', 'v')
   loop
     set local role anon;
-    execute format('select count(*) from public.%I', r.relname) into n;
+    begin
+      execute format('select count(*) from public.%I', r.relname) into n;
+    exception when insufficient_privilege then
+      n := 0;      -- e.g. a view whose function anon may not call: denied is as good as empty
+    end;
     reset role;
     assert n = 0, format('LEAK: anon sees %s rows in public.%s', n, r.relname);
     seen := seen + 1;

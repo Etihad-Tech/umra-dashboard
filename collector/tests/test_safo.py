@@ -124,3 +124,28 @@ class RunSafo(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class RelativeGateway(unittest.TestCase):
+    ORIGIN = "https://site.example"
+
+    def page(self, url="'/gw'", key=None):
+        return f"var SUPABASE_URL = {url}; var ANON_KEY = '{key or jwt('anon')}';"
+
+    def test_relative_gateway_is_resolved_against_the_site_origin(self):
+        url, key = safo.find_credentials([self.page()], self.ORIGIN)
+        self.assertEqual(url, "https://site.example/gw")
+        self.assertEqual(safo._jwt_role(key), "anon")
+
+    def test_relative_path_needs_an_origin(self):
+        with self.assertRaises(safo.SchemaError):
+            safo.find_credentials([self.page()])
+
+    def test_protocol_relative_or_external_urls_are_never_followed(self):
+        for bad in ("'//evil.example/gw'", "'https://evil.example/gw'", "'/gw/../x?y=1'"):
+            with self.assertRaises(safo.SchemaError, msg=bad):
+                safo.find_credentials([self.page(bad)], self.ORIGIN)
+
+    def test_service_role_is_still_refused_with_a_relative_url(self):
+        with self.assertRaises(safo.SchemaError):
+            safo.find_credentials([self.page(key=jwt("service_role"))], self.ORIGIN)
