@@ -75,6 +75,12 @@
     };
     var hasPrice = function (t) { return t.some(function (v) { return v != null; }); };
 
+    // Safo does not publish the number of nights; try its day label ("9 kecha"), otherwise 0 = unknown (the page then skips the nights check)
+    var nightsFrom = function (pk) {
+      if (pk.nights) return pk.nights;
+      var m = /(\d+)\s*kecha/i.exec(String((pk.services || {}).days_label || ''));
+      return m ? parseInt(m[1], 10) : 0;
+    };
     var etihad = [], allpk = [], unmapped = 0;
     (raw.packages || []).forEach(function (pk) {
       if (pk.active === false) return;
@@ -107,7 +113,7 @@
         });
         if (!Object.keys(d).length) return;
         allpk.push({ co: pk.company_id, pkg: pk.name || pk.external_key, key: pk.external_key,
-                     cat: pk.tier || null, n: pk.nights || 0, hotel: hotelsText(pk.hotels), d: d });
+                     cat: pk.tier || null, n: nightsFrom(pk), hotel: hotelsText(pk.hotels), d: d });
       }
     });
     etihad.sort(function (a, b) { return a.id < b.id ? -1 : 1; });

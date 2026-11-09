@@ -226,3 +226,25 @@ test('the page stays hidden behind a loading note until live.js has answered (su
   assert.ok(src.indexOf("classList.add('umra-loaded')") > 0);
   assert.ok(src.indexOf('refresh();') < src.lastIndexOf('refresh();'), 'refresh runs in both the success and the error branch');
 });
+
+test('a competitor that does not publish nights (Safo) is still compared; its nights come from the day label when there is one', () => {
+  const a = weekly(1, '2026-11-12', 2, [1890, 1990, 2290, 3250]);
+  const b = weekly(2, '2026-11-12', 2, [2000, 2100, 2300, null]);
+  const c = weekly(3, '2026-11-12', 2, [2050, 2150, 2350, null]);
+  const U = live.buildModel({
+    today: TODAY,
+    packages: [pkg(1, 'B', 'address10', { tier: 'lux', services: { depday: 'thu' } }),
+               pkg(2, 'S', 'adress-lux', { tier: 'lux', nights: null, services: { days_label: '10 kun / 9 kecha' } }),
+               pkg(3, 'S', 'xoji-aka-lux', { tier: 'lux', nights: null, services: {} })],
+    departures: [].concat(a.deps, b.deps, c.deps), prices: [].concat(a.pr, b.pr, c.pr),
+    sources: [{ company_id: 'S', last_ok_at: new Date().toISOString() }], meta: {} });
+  assert.deepStrictEqual(U.allpk.map((r) => [r.key, r.n]), [['adress-lux', 9], ['xoji-aka-lux', 0]]);
+  U.loaded = true; U.svc = { B: {}, S: {}, F: {} };
+  const { inst } = loadComponent(U);
+  const v = inst.renderVals();
+  assert.strictEqual(v.rows[0].s, '$2,000');                    // the known 9 nights wins over the unknown one
+  const none = (() => { const U2 = Object.assign({}, U, { allpk: U.allpk.filter((r) => r.key === 'xoji-aka-lux') });
+                        return loadComponent(U2).inst.renderVals(); })();
+  assert.strictEqual(none.rows[0].s, '$2,050');                 // unknown nights: still compared, no "0 kecha" shown
+  assert.ok(!JSON.stringify(none.mini).includes('0 kecha'));
+});
