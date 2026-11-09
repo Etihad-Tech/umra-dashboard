@@ -220,3 +220,81 @@ test('page never uses innerHTML for data: markup in names stays text', async () 
   assert.equal(p.doc.querySelectorAll('img').length, 0);
   assert.match(p.doc.getElementById('p-package').textContent, /<img/);
 });
+
+// ---- Phase 6: easier price entry
+const DATA3 = () => {
+  const d = DATA();
+  d.departures = [
+    { id: 10, package_id: 1, date: '2026-11-01', sold_out: false, is_manual: false, active: true },   // already past (today = 08.11)
+    { id: 11, package_id: 1, date: '2026-11-12', sold_out: true, is_manual: false, active: true },
+    { id: 12, package_id: 1, date: '2026-11-19', sold_out: false, is_manual: false, active: true },
+    { id: 13, package_id: 1, date: '2026-11-26', sold_out: false, is_manual: false, active: true },
+  ];
+  d.price_current = [{ departure_id: 12, pax: 4, price_usd: 1190, is_manual: false, conflict: false },
+                     { departure_id: 12, pax: 2, price_usd: 1390, is_manual: true, conflict: false }];
+  return d;
+};
+
+test('easier entry: the nearest upcoming date with seats is chosen, current prices become hints', async () => {
+  const p = await page(DATA3());
+  await pick(p, 'p-company', 'F'); await pick(p, 'p-package', '1');
+  assert.equal(p.doc.getElementById('p-departure').value, '12');          // not the past one, not the sold-out one
+  assert.match(text(p, 'p-current'), /4 kishi \$1190/);
+  assert.equal(p.doc.getElementById('p-pax4').placeholder, '1190');
+  assert.equal(p.doc.getElementById('p-pax2').placeholder, '1390');
+  assert.equal(p.doc.getElementById('p-pax3').placeholder, '');
+  assert.equal(p.doc.getElementById('p-pax4').value, '', 'hints are not values: empty stays "unchanged"');
+});
+
+test('easier entry: "all dates" writes the price for every date of the package after one confirmation', async () => {
+  const p = await page(DATA3());
+  await pick(p, 'p-company', 'F'); await pick(p, 'p-package', '1');
+  assert.match(p.doc.getElementById('p-alllabel').textContent, /4 ta/);
+  p.doc.getElementById('p-pax4').value = '1200';
+  const box = p.doc.getElementById('p-all'); box.checked = true;
+  submit(p, '#form-price'); await settle();
+  assert.equal(p.confirms.length, 1);
+  assert.match(p.confirms[0], /4 ta sanaga/);
+  assert.equal(p.client.writes.length, 1);
+  assert.deepEqual(p.client.writes[0].payload.map((r) => r.departure_id), [10, 11, 12, 13]);
+  assert.ok(p.client.writes[0].payload.every((r) => r.price_usd === 1200 && r.pax === 4));
+  assert.equal(box.checked, false, 'the box resets so the next save is not applied to everything by accident');
+});
+
+test('easier entry: declining the "all dates" question writes nothing; a single-date package has no such option', async () => {
+  const p = await page(DATA3(), { confirm: false });
+  await pick(p, 'p-company', 'F'); await pick(p, 'p-package', '1');
+  p.doc.getElementById('p-pax4').value = '1200';
+  p.doc.getElementById('p-all').checked = true;
+  submit(p, '#form-price'); await settle();
+  assert.equal(p.client.writes.length, 0);
+  const one = await page(DATA());
+  await pick(one, 'p-company', 'F'); await pick(one, 'p-package', '1');
+  assert.equal(one.doc.getElementById('p-allrow').style.display, 'none');
+});
+
+test('easier entry: the last company and package are remembered and restored (storage is optional)', async () => {
+  const store = {}; const storage = { getItem: (k) => (k in store ? store[k] : null), setItem: (k, v) => { store[k] = v; } };
+  const mk = async () => {
+    const dom = new JSDOM('<!doctype html><body><main id="kiritish"></main></body>');
+    const doc = dom.window.document;
+    const k = K.create({ document: doc, client: fakeClient(DATA3()), root: doc.getElementById('kiritish'), storage,
+      now: () => Date.UTC(2026, 10, 8), confirm: () => true });
+    await k.start(); await settle();
+    return { doc, win: dom.window };
+  };
+  const a = await mk();
+  const el = a.doc.getElementById('p-company'); el.value = 'F'; el.dispatchEvent(new a.win.Event('change')); await settle();
+  const pk = a.doc.getElementById('p-package'); pk.value = '1'; pk.dispatchEvent(new a.win.Event('change')); await settle();
+  assert.ok(store['umra.kiritish.last']);
+  const b = await mk(); await settle();                                  // the next visit
+  assert.equal(b.doc.getElementById('p-company').value, 'F');
+  assert.equal(b.doc.getElementById('p-package').value, '1');
+  assert.equal(b.doc.getElementById('p-departure').value, '12');
+  store['umra.kiritish.last'] = '{broken';                              // broken or stale storage must not break the page
+  const c = await mk();
+  assert.equal(c.doc.getElementById('p-company').value, '');
+  store['umra.kiritish.last'] = JSON.stringify({ co: 'ZZ', pkg: '9' });
+  const d = await mk();
+  assert.equal(d.doc.getElementById('p-company').value, '');
+});

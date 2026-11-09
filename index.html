@@ -16,12 +16,9 @@
 <script src="./config.js"></script>
 <script src="./auth.js"></script>
 <script src="./support.js"></script>
-<script src="./data/info.js"></script>
-<script src="./data/packages.js"></script>
+<script src="./etihad-meta.js"></script>
 <script src="./data/services.js"></script>
-<script src="./data/competitors.js"></script>
-<script src="./data/prices.js"></script>
-<script src="./data/events.js"></script>
+<script src="./live.js"></script>
 </head>
 <body>
 <x-dc>
@@ -307,7 +304,8 @@ class Component extends DCLogic {
   renderVals() {
     const U = window.UMRA || {};
     const S = this.state || {};
-    const TODAY = '2026-11-04';
+    window.__umraRefresh = () => this.forceUpdate();   // live.js calls this when new data arrives
+    const TODAY = U.today || new Date(Date.now() + 5 * 36e5).toISOString().slice(0, 10);   // real date, Asia/Tashkent
     const OURS = U.etihad || [];
     const COMP = (U.allpk || []).filter((r) => r.co !== 'B');
     const SV = U.svc || { B: {}, S: {}, F: {} };
@@ -325,7 +323,7 @@ class Component extends DCLogic {
     const LET = { B: 'E', S: 'S', F: 'M' };
     const LC = { B: '#E3BD62', S: '#F08A5D', F: '#5AA9F0' };
     const LG = { B: '#F4E2AE, #C99A3C', S: '#FFB591, #DE5B2E', F: '#92C8F7, #2F78D0' };
-    const GROUP = { Premium: ['PREMIUM'], Lux: ['LUX'], Comfort: ['KOMFORT', 'EKONOM', 'STANDART'] };
+    const GROUP = { Premium: ['premium'], Lux: ['lux'], Comfort: ['comfort', 'econom'] };   // tiers from the database (category_map)
     const TGRAD = { Premium: '#3A1F52, #7A3FA0', Lux: '#4A3408, #B07A12', Comfort: '#14304F, #2F6FB0' };
     const TCOL = { Premium: '#8A4CB8', Lux: '#C48A16', Comfort: '#3A82D0' };
     const GREEN = '#4FBF8F', ORANGE = '#E0A458', RED = '#D9686C';
@@ -363,11 +361,11 @@ class Component extends DCLogic {
     const date = ourDates.indexOf(S.date) >= 0 ? S.date : (defDate && ourDates.indexOf(defDate) >= 0 ? defDate : (ourDates[0] || ''));
     const px = [1, 2, 3, 4].indexOf(+S.px) >= 0 ? +S.px : 4;
     const tab = S.tab === 'x' ? 'x' : 'p';
-    const ageH = U.asOf ? Math.max(0, (Date.now() - new Date(U.asOf).getTime()) / 36e5) : 0;
+    const ageH = U.asOf ? Math.max(0, (Date.now() - new Date(U.asOf).getTime()) / 36e5) : (U.loaded ? 999 : 0);
     const ageTxt = ageH < 1 ? 'yangi' : ageH < 24 ? Math.round(ageH) + ' soat' : Math.floor(ageH / 24) + ' kun';
     const stale = ageH >= 24 ? (ageH >= 72 ? RED : ORANGE) : GREEN;
     const fresh = {
-      text: (U.asOfText || '').replace('-noyabr 2026,', '.11,') + ' · ' + ageTxt,
+      text: U.loadError ? "Yuklab bo'lmadi" : !U.loaded ? 'Yuklanmoqda…' : !U.asOf ? (U.asOfText || '') : (U.asOfText || '') + ' · ' + ageTxt,
       style: 'display: inline-flex; align-items: center; gap: 7px; padding: 6px 12px; border-radius: 999px; background: ' + stale + '18; border: 1px solid ' + stale + '55; font-size: 11.5px; color: #E6EEE9; white-space: nowrap',
       dot: 'width: 6px; height: 6px; border-radius: 50%; background: ' + stale + '; box-shadow: 0 0 8px ' + stale + '; animation: pulse 2s infinite'
     };

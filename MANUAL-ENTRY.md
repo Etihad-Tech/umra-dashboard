@@ -10,6 +10,12 @@ Page: `kiritish.html` (editors and admins only; viewers see "no access"). Same l
 | Bog'lash | Link our package (ETIHAD) to a competitor package; "Uzish" sets `active = false` (nothing is deleted). | `package_matches` |
 | Yozuvlar | Active manual entries: who, when, valid until, conflict flag. "O'chirish" sets `cleared_at`. | `manual_entries` (update) |
 
+## Faster price entry (Phase 6)
+- The last company and package are remembered in the browser and opened again next time.
+- The nearest upcoming date that still has seats is chosen automatically.
+- Current prices appear as grey hints in the fields: type only what changed; an empty field means "unchanged".
+- "Barcha sanalarga qo'llash": one price goes to every date of the package (one confirmation, one insert).
+
 ## Rules enforced by the database (migration 6), not by the page
 - Editors can only INSERT manual rows (`is_manual = true`) and cannot edit or delete automatic ones.
 - Editors cannot change `company_id` or `is_manual` of an existing row.

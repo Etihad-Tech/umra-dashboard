@@ -123,6 +123,9 @@
     function companyItems() { return state.companies.map(function (c) { return [c.id, c.short || c.name]; }); }
 
     // ---- tab 1: price entry ------------------------------------------------------------
+    // Fewer clicks: the last company/package is remembered, the nearest upcoming date is already chosen,
+    // current prices are shown as grey hints (type only what changed) and one price can go to ALL dates.
+    var LAST_KEY = 'umra.kiritish.last';
     function priceTab() {
       var co = select('p-company', companyItems(), 'Kompaniya');
       var pkg = select('p-package', [], 'Paket');
@@ -136,42 +139,72 @@
       var sold = select('p-sold', [['yes', 'Ha, tugagan'], ['no', "Yo'q, joy bor"]], "Joy holati: o'zgarmasin");
       var note = h('input', { type: 'text', maxlength: '200' });
       var days = h('input', { type: 'number', min: '1', max: '30', value: '7' });
+      var allBox = h('input', { type: 'checkbox', id: 'p-all', style: 'width:auto;margin-right:8px' });
+      var allLabel = h('label', { 'for': 'p-all', id: 'p-alllabel', style: 'display:inline', text: '' });
+      var allRow = h('div', { 'class': 'f', id: 'p-allrow', style: 'display:none' }, [allBox, allLabel]);
       var st = status();
-      var current = {};
+      var current = {}, depList = [];
 
-      co.addEventListener('change', function () {
-        setOptions(pkg, [], 'Paket'); setOptions(dep, [], 'Sana'); cur.textContent = '';
-        if (!co.value) return;
-        loadPackages(co.value).then(function (ps) { setOptions(pkg, ps.map(function (p) { return [p.id, pkgLabel(p)]; }), 'Paket'); })
+      function remember() {
+        try { if (deps.storage) deps.storage.setItem(LAST_KEY, JSON.stringify({ co: co.value, pkg: pkg.value })); } catch (e) { /* optional */ }
+      }
+      function hasOption(sel, v) { return Array.prototype.some.call(sel.options, function (o) { return o.value === String(v); }); }
+      function onCompany() {
+        setOptions(pkg, [], 'Paket'); setOptions(dep, [], 'Sana'); cur.textContent = ''; depList = []; allRow.style.display = 'none';
+        if (!co.value) return Promise.resolve();
+        return loadPackages(co.value).then(function (ps) { setOptions(pkg, ps.map(function (p) { return [p.id, pkgLabel(p)]; }), 'Paket'); })
           .catch(function () { say(st, MSG.loadFailed, true); });
-      });
-      pkg.addEventListener('change', function () {
-        setOptions(dep, [], 'Sana'); cur.textContent = '';
-        if (!pkg.value) return;
-        loadDepartures(pkg.value).then(function (ds) { setOptions(dep, ds.map(function (d) { return [d.id, d.date + (d.sold_out ? ' (tugagan)' : '')]; }), 'Sana'); })
-          .catch(function () { say(st, MSG.loadFailed, true); });
-      });
-      dep.addEventListener('change', function () {
+      }
+      function onDeparture() {
         current = {}; cur.textContent = '';
-        if (!dep.value) return;
-        loadCurrent(dep.value).then(function (rows) {
-          rows.forEach(function (r) { current[r.pax] = r.price_usd; });
+        [1, 2, 3, 4].forEach(function (pax) { inputs[pax].placeholder = ''; });
+        if (!dep.value) return Promise.resolve();
+        return loadCurrent(dep.value).then(function (rows) {
+          rows.forEach(function (r) { current[r.pax] = r.price_usd; inputs[r.pax].placeholder = String(r.price_usd); });
           cur.textContent = rows.length
             ? 'Hozirgi narxlar: ' + rows.map(function (r) {
                 return r.pax + ' kishi $' + r.price_usd + (r.is_manual ? ' (qo\'lda)' : '') + (r.conflict ? ' ⚠' : '');
               }).join(', ')
             : "Hozircha narx yo'q.";
         }).catch(function () { say(st, MSG.loadFailed, true); });
-      });
+      }
+      function onPackage() {
+        setOptions(dep, [], 'Sana'); cur.textContent = ''; depList = []; allBox.checked = false; allRow.style.display = 'none';
+        if (!pkg.value) return Promise.resolve();
+        remember();
+        return loadDepartures(pkg.value).then(function (ds) {
+          depList = ds;
+          setOptions(dep, ds.map(function (d) { return [d.id, d.date + (d.sold_out ? ' (tugagan)' : '')]; }), 'Sana');
+          if (ds.length > 1) { allLabel.textContent = "Barcha sanalarga qo'llash (" + ds.length + ' ta)'; allRow.style.display = ''; }
+          var today = new Date(now()).toISOString().slice(0, 10);
+          var upcoming = ds.filter(function (d) { return d.date >= today; });
+          var next = upcoming.filter(function (d) { return !d.sold_out; })[0] || upcoming[0];
+          if (next) { dep.value = String(next.id); return onDeparture(); }
+        }).catch(function () { say(st, MSG.loadFailed, true); });
+      }
+      function restore() {
+        var saved = null;
+        try { saved = deps.storage && JSON.parse(deps.storage.getItem(LAST_KEY) || 'null'); } catch (e) { saved = null; }
+        if (!saved || !saved.co || !hasOption(co, saved.co)) return;
+        co.value = saved.co;
+        onCompany().then(function () {
+          if (saved.pkg && hasOption(pkg, saved.pkg)) { pkg.value = String(saved.pkg); return onPackage(); }
+        });
+      }
+
+      co.addEventListener('change', function () { onCompany().then(function () { remember(); }); });
+      pkg.addEventListener('change', onPackage);
+      dep.addEventListener('change', onDeparture);
 
       var btn = h('button', { type: 'submit', 'class': 'main', text: 'Saqlash' });
       var form = h('form', { id: 'form-price', novalidate: 'novalidate' },
-        [field('Kompaniya', co, 'p-company'), field('Paket', pkg, 'p-package'), field('Sana', dep, 'p-departure'), cur]
+        [field('Kompaniya', co, 'p-company'), field('Paket', pkg, 'p-package'), field('Sana', dep, 'p-departure'), allRow, cur]
           .concat(priceFields, [field('Joy holati', sold, 'p-sold'), field('Izoh', note, 'p-note'),
             field('Necha kun amal qiladi (1–30)', days, 'p-days'), btn, st]));
       form.addEventListener('submit', function (ev) {
         ev.preventDefault();
-        if (!dep.value) { say(st, MSG.pick, true); return; }
+        var all = allBox.checked && depList.length > 1;
+        if (!all && !dep.value) { say(st, MSG.pick, true); return; }
         var prices = {}, bad = false;
         [1, 2, 3, 4].forEach(function (pax) {
           var v = parsePrice(inputs[pax].value);
@@ -182,20 +215,25 @@
         var soldOut = sold.value === 'yes' ? true : sold.value === 'no' ? false : null;
         var d = parseInt(days.value, 10);
         if (!(d >= 1 && d <= 30)) d = 7;
-        var rows = buildEntryRows(Number(dep.value), prices, soldOut, note.value.trim(), d, now());
+        var targets = all ? depList.map(function (x) { return x.id; }) : [Number(dep.value)];
+        var rows = [];
+        targets.forEach(function (id) { rows = rows.concat(buildEntryRows(id, prices, soldOut, note.value.trim(), d, now())); });
         if (!rows.length) { say(st, MSG.needPrice, true); return; }
         var far = bigDeviations(prices, current);
         if (far.length && !confirmFn("Narx hozirgisidan 30% dan ko'proq farq qiladi (" + far.join(', ') + " kishi). Davom etamizmi?")) return;
+        if (all && !confirmFn('Narx ' + targets.length + " ta sanaga qo'llanadi. Davom etamizmi?")) return;
         btn.disabled = true;
         q('manual_entries').insert(rows).then(function (r) {
           btn.disabled = false;
           if (r.error) { say(st, errorText(r.error), true); return; }
           [1, 2, 3, 4].forEach(function (pax) { inputs[pax].value = ''; });
+          allBox.checked = false;
           say(st, MSG.saved, false);
-          dep.dispatchEvent(new doc.defaultView.Event('change'));
+          onDeparture();
           refreshList();
         }).catch(function () { btn.disabled = false; say(st, MSG.failed, true); });
       });
+      restore();
       return form;
     }
 
@@ -396,7 +434,9 @@
       var root = document.getElementById('kiritish');
       if (!root) return;
       if (info.role !== 'editor' && info.role !== 'admin') { root.textContent = MSG.noAccess; return; }
-      create({ document: document, client: info.client, root: root, confirm: function (m) { return window.confirm(m); } }).start();
+      var storage = null;
+      try { storage = window.localStorage; } catch (e) { storage = null; }
+      create({ document: document, client: info.client, root: root, storage: storage, confirm: function (m) { return window.confirm(m); } }).start();
     };
     window.addEventListener('umra:ready', function (ev) { boot(ev.detail); });
     var a = window.UmraAuth && window.UmraAuth.instance && window.UmraAuth.instance.ready();
