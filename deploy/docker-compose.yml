@@ -1,7 +1,10 @@
 # Run from this folder:   ./deploy.sh      (checks the settings, builds, starts)
-name: umra
+# The web container serves plain HTTP on 127.0.0.1 only; the server's nginx terminates TLS in front of it
+# (deploy/nginx-site.conf + certbot), like the other apps on the same server.
+name: umra-dashboard
 services:
   collector:
+    container_name: etihad-narx-collector
     build: { context: .., dockerfile: deploy/collector.Dockerfile }
     restart: unless-stopped
     init: true                             # PID 1 forwards SIGTERM, so "docker compose down" stops it cleanly
@@ -16,6 +19,7 @@ services:
     # no ports: the collector only makes outgoing requests
 
   web:
+    container_name: etihad-narx-web
     build:
       context: ..
       dockerfile: deploy/web.Dockerfile
@@ -25,14 +29,13 @@ services:
     restart: unless-stopped
     user: "10002:10002"                    # "web" user created in web.Dockerfile; owns /data and /config
     environment:
-      SITE_DOMAIN: ${SITE_DOMAIN:?set SITE_DOMAIN in deploy/.env}
       SUPABASE_URL: ${SUPABASE_URL:?set SUPABASE_URL in deploy/.env}   # used in the CSP connect-src
-    ports: ["80:80", "443:443", "443:443/udp"]   # 443/udp = HTTP/3
+    # loopback only: reachable through nginx (HTTPS), never directly from the internet
+    ports: ["127.0.0.1:${WEB_PORT:-8744}:8080"]
     volumes: [caddy_data:/data, caddy_config:/config]
     read_only: true
     tmpfs: [/tmp]
-    cap_drop: [ALL]                        # no capability at all: low ports come from the sysctl below
-    sysctls: { net.ipv4.ip_unprivileged_port_start: 0 }
+    cap_drop: [ALL]                        # no capability at all: 8080 is not a privileged port
     security_opt: ["no-new-privileges:true"]
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:2019/config/"]
@@ -45,5 +48,5 @@ services:
     logging: { driver: json-file, options: { max-size: "10m", max-file: "5" } }
 
 volumes:
-  caddy_data:      # TLS certificates and the ACME account: keep this volume (Let's Encrypt rate limits)
+  caddy_data:      # Caddy's state (no certificates: TLS is nginx's job on this server)
   caddy_config:

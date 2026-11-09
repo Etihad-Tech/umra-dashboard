@@ -1,26 +1,28 @@
 #!/usr/bin/env bash
-# Prepare a fresh Ubuntu 24.04 VPS for this app. Run as root; safe to run again (it only fixes what is missing).
+# Prepare a FRESH Ubuntu 24.04 VPS for this app. Run as root; safe to run again (it only fixes what is missing).
+# NOT for a server that already hosts other apps: it turns on ufw and changes sshd for the whole machine, so it
+# refuses when nginx already serves other sites or other containers run (DEPLOY.md "Shared server" instead).
 #
 #   sudo SSH_PUBKEY="ssh-ed25519 AAAA... you@laptop" bash deploy/server-setup.sh
 #
 # Settings (environment variables, all optional):
 #   DEPLOY_USER  non-root user that runs the app             (default: deploy)
-#   APP_DIR      where the repository is cloned              (default: /opt/umra-dashboard)
+#   APP_DIR      where the repository is cloned              (default: ~DEPLOY_USER/umra-dashboard)
 #   SSH_PUBKEY   public key to add for DEPLOY_USER; without it the keys of root are copied (if root has any)
 #
 # What it does:
-#   1. base packages (git, python3, curl, ufw, unattended-upgrades)
+#   1. base packages (git, python3, curl, ufw, unattended-upgrades, nginx + certbot for TLS in front of the app)
 #   2. Docker Engine + compose plugin from Docker's official apt repository (key fingerprint checked)
 #   3. DEPLOY_USER (groups docker + sudo), its SSH key, owner of APP_DIR
-#   4. firewall: only 22/tcp (and the port sshd really uses), 80/tcp, 443/tcp, 443/udp
+#   4. firewall: only 22/tcp (and the port sshd really uses), 80/tcp, 443/tcp
 #   5. automatic security updates (+ reboot at 22:30 UTC = 03:30 Tashkent when a kernel update needs it)
 #   6. SSH: keys only, no root login. REFUSED (nothing changed) while DEPLOY_USER has no valid key, so nobody
 #      gets locked out. Root login stays key-only (not "no") while DEPLOY_USER cannot use sudo (no password yet).
-# Note: Docker publishes container ports past ufw; this app publishes only 80 and 443, which are open anyway.
+# Note: Docker publishes container ports past ufw; this app publishes only 127.0.0.1:WEB_PORT (loopback).
 set -euo pipefail
 
 DEPLOY_USER="${DEPLOY_USER:-deploy}"
-APP_DIR="${APP_DIR:-/opt/umra-dashboard}"
+APP_DIR="${APP_DIR:-}"
 SSH_PUBKEY="${SSH_PUBKEY:-}"
 DOCKER_FPR="9DC858229FC7DD38854AE2D88D81803C0EBFCD88"   # https://docs.docker.com/engine/install/ubuntu/
 
@@ -38,9 +40,23 @@ result=0
 [ "$DEPLOY_USER" != "root" ] || die "DEPLOY_USER must not be root"
 export DEBIAN_FRONTEND=noninteractive
 
+# a shared server: other nginx sites or other containers mean other apps live here
+others=""
+if [ -d /etc/nginx/sites-enabled ]; then
+  others="$(find /etc/nginx/sites-enabled -mindepth 1 ! -name default ! -name narx.conf -printf '%f ' 2>/dev/null || true)"
+fi
+if command -v docker >/dev/null 2>&1; then
+  others+="$(docker ps --format '{{.Names}} {{.Label "com.docker.compose.project"}}' 2>/dev/null \
+             | awk '$2 != "umra-dashboard" {printf "%s ", $1}' || true)"
+fi
+if [ -n "$others" ] && [ "${SHARED_SERVER_OK:-0}" != "1" ]; then
+  die "other apps run on this server ($others): do not run this script here, follow DEPLOY.md (it changes ufw and sshd for everyone)"
+fi
+
 log "1/6 base packages"
 apt-get update -q
-apt-get install -y -q ca-certificates curl gnupg git python3 ufw unattended-upgrades openssh-server
+apt-get install -y -q ca-certificates curl gnupg git python3 ufw unattended-upgrades openssh-server \
+  nginx certbot python3-certbot-nginx
 
 log "2/6 Docker from Docker's official apt repository"
 for p in docker.io docker-doc docker-compose docker-compose-v2 podman-docker containerd runc; do
@@ -83,6 +99,7 @@ if ! id -u "$DEPLOY_USER" >/dev/null 2>&1; then
 fi
 usermod -aG docker,sudo "$DEPLOY_USER"   # docker group = full control of Docker: give it only to this user
 home="$(getent passwd "$DEPLOY_USER" | cut -d: -f6)"
+APP_DIR="${APP_DIR:-$home/umra-dashboard}"
 install -d -m 700 -o "$DEPLOY_USER" -g "$DEPLOY_USER" "$home/.ssh"
 ak="$home/.ssh/authorized_keys"
 [ -f "$ak" ] || install -m 600 -o "$DEPLOY_USER" -g "$DEPLOY_USER" /dev/null "$ak"
@@ -123,7 +140,6 @@ ufw allow 22/tcp >/dev/null
 for p in $ssh_ports; do ufw allow "$p/tcp" >/dev/null; done   # never lock out an sshd on another port
 ufw allow 80/tcp >/dev/null
 ufw allow 443/tcp >/dev/null
-ufw allow 443/udp >/dev/null
 ufw --force enable >/dev/null
 ufw status verbose
 
@@ -179,5 +195,5 @@ EOF
 fi
 
 log "done"
-echo "Next (as $DEPLOY_USER):  cd $APP_DIR && follow DEPLOY.md from step 4"
+echo "Next (as $DEPLOY_USER):  follow DEPLOY.md from step 1 (clone into $APP_DIR)"
 exit "$result"

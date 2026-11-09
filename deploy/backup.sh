@@ -5,7 +5,7 @@
 # pg_dump runs in a pinned postgres:17 container, so the server needs only Docker (no apt client version mismatch;
 # pg_dump 17 can dump Supabase Postgres 15 and 17).
 # cron (deploy user, every day 03:10):
-#   10 3 * * * /opt/umra-dashboard/deploy/backup.sh >> $HOME/umra-backup.log 2>&1
+#   10 3 * * * $HOME/umra-dashboard/deploy/backup.sh >> $HOME/umra-backup.log 2>&1
 # The dump contains password hashes and 2FA secrets: files are 600, the folder 700. Copy them OFF this server too.
 set -euo pipefail
 umask 077
@@ -16,6 +16,8 @@ KEEP_DAYS="${KEEP_DAYS:-14}"
 ENV_FILE="backup.env"
 
 die() { echo "backup: $*" >&2; exit 1; }
+DOCKER=(docker)   # outside the docker group (a shared server): through passwordless sudo
+docker info >/dev/null 2>&1 || DOCKER=(sudo -n docker)
 [ -f "$ENV_FILE" ] || die "deploy/$ENV_FILE is missing (cp deploy/backup.env.example deploy/backup.env)"
 chmod 600 "$ENV_FILE"
 grep -q '^SUPABASE_DB_URL=' "$ENV_FILE" && die "$ENV_FILE uses the old SUPABASE_DB_URL line; use the PG* lines from backup.env.example"
@@ -36,7 +38,7 @@ trap 'rm -f "$tmp"' EXIT
 
 # --env-file: the password goes to pg_dump through the environment, not argv (not visible in ps).
 # --log-driver none: the dump streams to us only, it is not copied into Docker's container log.
-docker run --rm --log-driver none --network bridge \
+"${DOCKER[@]}" run --rm --log-driver none --network bridge \
   --read-only --tmpfs /tmp --cap-drop ALL --security-opt no-new-privileges --user 70:70 \
   --env-file "$ENV_FILE" "${ssl_args[@]}" \
   "$PG_IMAGE" \

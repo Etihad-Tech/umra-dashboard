@@ -15,6 +15,8 @@ umask 077
 
 PG_IMAGE="postgres:17.11-alpine@sha256:3540c0362c809df084ffac0ae69fe794515f9de92692f02178bcdce0ef0302ac"
 die() { echo "restore: $*" >&2; exit 1; }
+DOCKER=(docker)   # outside the docker group (a shared server): through passwordless sudo
+docker info >/dev/null 2>&1 || DOCKER=(sudo -n docker)
 
 [ $# -eq 2 ] || die "usage: $0 <backup .sql.gz> <target env file>"
 dump="$1"
@@ -48,7 +50,7 @@ empty_public="DO \$\$ DECLARE t text; BEGIN
   END LOOP;
 END \$\$"
 
-gzip -dc "$dump" | docker run --rm -i --log-driver none --network bridge \
+gzip -dc "$dump" | "${DOCKER[@]}" run --rm -i --log-driver none --network bridge \
   --read-only --tmpfs /tmp --cap-drop ALL --security-opt no-new-privileges --user 70:70 \
   --env-file "$env_file" "${ssl_args[@]}" \
   "$PG_IMAGE" \

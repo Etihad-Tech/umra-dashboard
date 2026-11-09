@@ -37,6 +37,12 @@ class Preflight(unittest.TestCase):
         self.assertTrue(preflight.problems(WEB, dict(COL, SUPABASE_URL="https://other.supabase.co")))
         self.assertTrue(preflight.problems(WEB, dict(COL, SUPABASE_SERVICE_ROLE_KEY=WEB["SUPABASE_ANON_KEY"])))
 
+    def test_sslip_name_and_web_port(self):
+        self.assertEqual(preflight.problems(dict(WEB, SITE_DOMAIN="narx-abc123def456.18.185.13.51.sslip.io"), COL), [])
+        self.assertEqual(preflight.problems(dict(WEB, WEB_PORT="8744"), COL), [])
+        for port in ["80", "443", "0", "70000", "87 44", "abc", ""]:
+            self.assertTrue(preflight.problems(dict(WEB, WEB_PORT=port), COL), port)
+
     def test_env_parser(self):
         self.assertEqual(preflight.parse_env('# c\nA=1\nB = "two"\n\nC=\nbad line\nD=x=y\n'),
                          {"A": "1", "B": "two", "C": "", "D": "x=y"})

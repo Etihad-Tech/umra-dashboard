@@ -48,7 +48,7 @@
 ## Ilova (PWA) sifatida o'rnatish
 Sayt oddiy ilova kabi ishlaydi: telefon yoki kompyuterga o'rnatiladi, o'z ikonkasi bor, oflayn ham ochiladi.
 
-**Boshqalar ishlatishi uchun:** sayt serverda Docker + Caddy orqali ishlaydi (`DEPLOY.md`). GitHub Pages
+**Boshqalar ishlatishi uchun:** sayt serverda Docker + Caddy orqali ishlaydi, HTTPS'ni serverdagi nginx beradi (`DEPLOY.md`). GitHub Pages
 ishlatilmaydi: u xavfsizlik sarlavhalarini (CSP, HSTS) bera olmaydi.
 
 **O'rnatish:**
