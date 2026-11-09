@@ -16,14 +16,13 @@
 <script src="./config.js"></script>
 <script src="./auth.js"></script>
 <script src="./support.js"></script>
-<script src="./data/info.js"></script>
-<script src="./data/packages.js"></script>
+<style>html:not(.umra-loaded) main{display:none!important}#umra-loading{display:none;color:#8CA096;font:500 14px Inter,system-ui,sans-serif;text-align:center;padding:90px 16px}html:not(.umra-loaded) #umra-loading{display:block}</style>
+<script src="./etihad-meta.js"></script>
 <script src="./data/services.js"></script>
-<script src="./data/competitors.js"></script>
-<script src="./data/prices.js"></script>
-<script src="./data/events.js"></script>
+<script src="./live.js"></script>
 </head>
 <body>
+<div id="umra-loading" role="status">Yuklanmoqda…</div>
 <x-dc>
 <helmet>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -307,7 +306,8 @@ class Component extends DCLogic {
   renderVals() {
     const U = window.UMRA || {};
     const S = this.state || {};
-    const TODAY = '2026-11-04';
+    window.__umraRefresh = () => this.forceUpdate();   // live.js calls this when new data arrives
+    const TODAY = U.today || new Date(Date.now() + 5 * 36e5).toISOString().slice(0, 10);   // real date, Asia/Tashkent
     const OURS = U.etihad || [];
     const COMP = (U.allpk || []).filter((r) => r.co !== 'B');
     const SV = U.svc || { B: {}, S: {}, F: {} };
@@ -325,7 +325,7 @@ class Component extends DCLogic {
     const LET = { B: 'E', S: 'S', F: 'M' };
     const LC = { B: '#E3BD62', S: '#F08A5D', F: '#5AA9F0' };
     const LG = { B: '#F4E2AE, #C99A3C', S: '#FFB591, #DE5B2E', F: '#92C8F7, #2F78D0' };
-    const GROUP = { Premium: ['PREMIUM'], Lux: ['LUX'], Comfort: ['KOMFORT', 'EKONOM', 'STANDART'] };
+    const GROUP = { Premium: ['premium'], Lux: ['lux'], Comfort: ['comfort', 'econom'] };   // tiers from the database (category_map)
     const TGRAD = { Premium: '#3A1F52, #7A3FA0', Lux: '#4A3408, #B07A12', Comfort: '#14304F, #2F6FB0' };
     const TCOL = { Premium: '#8A4CB8', Lux: '#C48A16', Comfort: '#3A82D0' };
     const GREEN = '#4FBF8F', ORANGE = '#E0A458', RED = '#D9686C';
@@ -339,13 +339,13 @@ class Component extends DCLogic {
       const list = [];
       if (!o) return list;
       COMP.forEach((r) => {
-        if (r.co !== co || (GROUP[o.tier] || []).indexOf(r.cat) < 0 || Math.abs(r.n - o.n) > 2) return;
+        if (r.co !== co || (GROUP[o.tier] || []).indexOf(r.cat) < 0 || (r.n && Math.abs(r.n - o.n) > 2)) return;
         let best = null;
         Object.keys(r.d).forEach((x) => {
           const diff = Math.abs(dms(x) - dms(d));
           if (diff <= 3 && r.d[x] !== 0 && (!best || diff < best.diff)) best = { d: x, diff };
         });
-        if (best) list.push({ r, d: best.d, diff: best.diff, dn: Math.abs(r.n - o.n) });
+        if (best) list.push({ r, d: best.d, diff: best.diff, dn: r.n ? Math.abs(r.n - o.n) : 1.5 });
       });
       list.sort((a, b) => a.dn - b.dn || a.diff - b.diff || (a.r.d[a.d][0] || 9e9) - (b.r.d[b.d][0] || 9e9));
       return list;
@@ -363,11 +363,11 @@ class Component extends DCLogic {
     const date = ourDates.indexOf(S.date) >= 0 ? S.date : (defDate && ourDates.indexOf(defDate) >= 0 ? defDate : (ourDates[0] || ''));
     const px = [1, 2, 3, 4].indexOf(+S.px) >= 0 ? +S.px : 4;
     const tab = S.tab === 'x' ? 'x' : 'p';
-    const ageH = U.asOf ? Math.max(0, (Date.now() - new Date(U.asOf).getTime()) / 36e5) : 0;
+    const ageH = U.asOf ? Math.max(0, (Date.now() - new Date(U.asOf).getTime()) / 36e5) : (U.loaded ? 999 : 0);
     const ageTxt = ageH < 1 ? 'yangi' : ageH < 24 ? Math.round(ageH) + ' soat' : Math.floor(ageH / 24) + ' kun';
     const stale = ageH >= 24 ? (ageH >= 72 ? RED : ORANGE) : GREEN;
     const fresh = {
-      text: (U.asOfText || '').replace('-noyabr 2026,', '.11,') + ' · ' + ageTxt,
+      text: U.loadError ? "Yuklab bo'lmadi" : !U.loaded ? 'Yuklanmoqda…' : !U.asOf ? (U.asOfText || '') : (U.asOfText || '') + ' · ' + ageTxt,
       style: 'display: inline-flex; align-items: center; gap: 7px; padding: 6px 12px; border-radius: 999px; background: ' + stale + '18; border: 1px solid ' + stale + '55; font-size: 11.5px; color: #E6EEE9; white-space: nowrap',
       dot: 'width: 6px; height: 6px; border-radius: 50%; background: ' + stale + '; box-shadow: 0 0 8px ' + stale + '; animation: pulse 2s infinite'
     };
@@ -463,7 +463,7 @@ class Component extends DCLogic {
     const axisNote = all.length ? 'Har bir guruh — xonada necha kishi. Ustun balandligi — bir kishi uchun narx ($). Oltin halqa — ETIHAD. Ustunlar ' + base + ' $ dan boshlanadi.' : '';
     const pickers = ['S', 'F'].filter((co) => cands[co].length > 1).map((co) => ({
       title: LN[co] + ': ETIHAD paketiga o\'xshash paketlar', badge: badge(co, 22, selRC[co]), letter: LET[co],
-      opts: cands[co].map((m, i) => { const on = i === pickIdx(co); return { label: m.r.pkg, sub: short(m.d) + ' · ' + m.r.n + ' kecha', price: priceOfM(m, px) ? fmt(priceOfM(m, px)) : '—', style: 'display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; text-align: left; padding: 10px 14px; border-radius: 14px; cursor: pointer; font-family: inherit; transition: all .2s; border: 1px solid ' + (on ? 'rgba(241,221,166,.9)' : 'rgba(255,255,255,.1)') + '; background: ' + (on ? 'linear-gradient(180deg, #F1DDA6, #CFA24A)' : 'rgba(255,255,255,.03)') + '; color: ' + (on ? '#2A1D00' : '#DCE6DF'), click: () => this.setState({ ['p' + co]: i }) }; })
+      opts: cands[co].map((m, i) => { const on = i === pickIdx(co); return { label: m.r.pkg, sub: short(m.d) + (m.r.n ? ' · ' + m.r.n + ' kecha' : ''), price: priceOfM(m, px) ? fmt(priceOfM(m, px)) : '—', style: 'display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; text-align: left; padding: 10px 14px; border-radius: 14px; cursor: pointer; font-family: inherit; transition: all .2s; border: 1px solid ' + (on ? 'rgba(241,221,166,.9)' : 'rgba(255,255,255,.1)') + '; background: ' + (on ? 'linear-gradient(180deg, #F1DDA6, #CFA24A)' : 'rgba(255,255,255,.03)') + '; color: ' + (on ? '#2A1D00' : '#DCE6DF'), click: () => this.setState({ ['p' + co]: i }) }; })
     }));
     const dateLong = date ? short(date) + ' · ' + wd(date) : '';
 
@@ -638,7 +638,7 @@ class Component extends DCLogic {
       const nm = cols[k].name;
       const ok = co === 'B' ? !!our : !!chosen[co];
       const hs = ((sv[co] && sv[co].hot) || []).filter((h) => h[0] !== 'Jidda').slice(0, 2);
-      const tl = ok ? [{ k: 'Jami', v: nightsOf(co) + ' kecha', sub: co === 'B' ? wd(date) + ' · ' + our.tier : (chosen[co].r.cat || '') }].concat(hs.map((h) => ({ k: h[0], v: h[1], sub: h[2] + ' kecha' }))) : [{ k: 'Paket', v: 'mos paket yo\'q', sub: '' }];
+      const tl = ok ? [{ k: 'Jami', v: nightsOf(co) ? nightsOf(co) + ' kecha' : '—', sub: co === 'B' ? wd(date) + ' · ' + our.tier : (chosen[co].r.cat || '') }].concat(hs.map((h) => ({ k: h[0], v: h[1], sub: h[2] + ' kecha' }))) : [{ k: 'Paket', v: 'mos paket yo\'q', sub: '' }];
       const opts = co !== 'B' && cands[co].length > 1 ? cands[co].map((m, i) => { const on = i === pickIdx(co); return { label: m.r.pkg + ' · ' + short(m.d), price: priceOfM(m, px) ? fmt(priceOfM(m, px)) : '—', style: 'display: inline-flex; align-items: center; gap: 8px; padding: 6px 11px; border-radius: 999px; cursor: pointer; font-family: inherit; font-size: 12px; font-weight: 600; transition: all .2s; border: 1px solid ' + (on ? 'rgba(241,221,166,.9)' : 'rgba(255,255,255,.12)') + '; background: ' + (on ? 'linear-gradient(180deg, #F1DDA6, #CFA24A)' : 'rgba(255,255,255,.03)') + '; color: ' + (on ? '#2A1D00' : '#C9D6CE'), click: () => this.setState({ ['p' + co]: i }) }; }) : [];
       return { badge: badge(co, 22, RC[co]), letter: LET[co], tag: LN[co], name: nm, tl, opts };
     });

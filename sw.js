@@ -1,10 +1,9 @@
 // Oddiy offline-kesh: ilova fayllari keshlanadi, yangi versiya chiqsa VERSION ni o'zgartiring.
-const VERSION = 'umra-v4';
+const VERSION = 'umra-v5';
 const CORE = [
   './', './index.html', './support.js', './manifest.webmanifest',
   './auth.js', './kiritish.html', './kiritish.js', './config.js', './vendor/supabase.js',
-  './data/info.js', './data/packages.js', './data/services.js', './data/competitors.js',
-  './data/prices.js', './data/events.js',
+  './live.js', './etihad-meta.js', './data/services.js',
   './icons/icon-192.png', './icons/icon-512.png'
 ];
 self.addEventListener('install', (e) => {
