@@ -161,7 +161,10 @@
   if (typeof window !== 'undefined' && !window.__UMRA_LIVE_NO_AUTOSTART) {
     window.UmraLive = api;
     var started = false;
-    var refresh = function () { if (typeof window.__umraRefresh === 'function') window.__umraRefresh(); };
+    var refresh = function () {
+      document.documentElement.classList.add('umra-loaded');      // reveals the page (index.html hides it until then)
+      if (typeof window.__umraRefresh === 'function') window.__umraRefresh();
+    };
     var boot = function (info) {
       if (started || !info || !info.client) return;
       started = true;
@@ -169,8 +172,10 @@
         load(info.client, (window.UMRA || {}).etihadMeta).then(function (model) {
           window.UMRA = Object.assign(window.UMRA || {}, model, { loaded: true, loadError: false });
           refresh();
-        }).catch(function () {
-          window.UMRA = Object.assign(window.UMRA || {}, { loaded: true, loadError: true });
+        }).catch(function (e) {
+          var msg = String((e && e.message) || e).slice(0, 200);   // table name + database message, no secrets
+          if (window.console) window.console.warn('[live] could not load data:', msg);
+          window.UMRA = Object.assign(window.UMRA || {}, { loaded: true, loadError: true, loadErrorText: msg });
           refresh();
         });
       };

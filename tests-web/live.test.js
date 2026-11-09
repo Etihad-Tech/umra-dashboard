@@ -217,3 +217,12 @@ test('index.html and the service worker only reference files that exist; old pri
     assert.ok(!fs.existsSync(path.join(ROOT, 'data', f)), 'data/' + f + ' must be deleted'));
   assert.ok(!/data\/(competitors|prices|events|info|packages)\.js/.test(html + sw));
 });
+
+test('the page stays hidden behind a loading note until live.js has answered (success or failure)', () => {
+  const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+  const src = fs.readFileSync(path.join(ROOT, 'live.js'), 'utf8');
+  assert.match(html, /html:not\(\.umra-loaded\) main\{display:none/);
+  assert.match(html, /id="umra-loading"/);
+  assert.ok(src.indexOf("classList.add('umra-loaded')") > 0);
+  assert.ok(src.indexOf('refresh();') < src.lastIndexOf('refresh();'), 'refresh runs in both the success and the error branch');
+});
