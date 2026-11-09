@@ -248,3 +248,14 @@ test('a competitor that does not publish nights (Safo) is still compared; its ni
   assert.strictEqual(none.rows[0].s, '$2,050');                 // unknown nights: still compared, no "0 kecha" shown
   assert.ok(!JSON.stringify(none.mini).includes('0 kecha'));
 });
+
+test('liveSvc: Mandarin hotels, airline and trains become the services table data; Safo (no data) gives null', () => {
+  const L = require('../live.js');
+  const s = L.liveSvc({ hotels: [{ city: 'Makkah', name: 'Hotel A', nights: 5, meal_type: 'BB' }, { city: 'Medina', name: 'Hotel B', nights: 3, meal_type: 'HB' }, { city: '?', name: 'X' }],
+    services: { airline: 'HY', route_go: 'TAS-JED', route_ret: 'MED-TAS', trains: ['x'] } });
+  assert.deepEqual(s.hot, [['Makka', 'Hotel A', 5, 1], ['Madina', 'Hotel B', 3, 2]]);
+  assert.equal(s.air, 'HY · TAS-JED / MED-TAS');
+  assert.equal(s.train, 1);
+  assert.equal(L.liveSvc({ hotels: [], services: { days_label: '9 kecha' } }), null);
+  assert.equal(L.liveSvc({}), null);
+});

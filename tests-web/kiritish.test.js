@@ -67,6 +67,9 @@ async function pick(p, id, value) {
   await settle();
 }
 const submit = (p, sel) => p.doc.querySelector(sel).dispatchEvent(new p.win.Event('submit', { cancelable: true, bubbles: true }));
+const chip = async (p, box, id) => { p.doc.querySelector('#' + box + ' [data-id="' + id + '"]').click(); await settle(); };
+const cell = (p, dep, pax) => p.doc.getElementById('c-' + dep + '-' + pax);
+const type = (p, el, v) => { el.value = v; el.dispatchEvent(new p.win.Event('input')); };
 const text = (p, id) => p.doc.getElementById(id).textContent;
 
 test('parsePrice accepts plain, spaced and $ numbers; rejects junk and zero', () => {
@@ -93,56 +96,6 @@ test('bigDeviations flags only changes over 30%', () => {
   assert.deepEqual(K.bigDeviations({ 4: 1700, 3: 1000 }, { 4: 1190, 3: 1000 }), [4]);
   assert.deepEqual(K.bigDeviations({ 4: 1200 }, { 4: 1190 }), []);
   assert.deepEqual(K.bigDeviations({ 4: 1200 }, {}), []);
-});
-
-test('price form: company -> package -> date shows the current price, saving inserts rows', async () => {
-  const p = await page();
-  await pick(p, 'p-company', 'F'); await pick(p, 'p-package', '1'); await pick(p, 'p-departure', '10');
-  assert.match(text(p, 'p-current'), /4 kishi \$1190/);
-  p.doc.getElementById('p-pax4').value = '1 250';
-  submit(p, '#form-price'); await settle();
-  assert.equal(p.client.writes.length, 1);
-  const w = p.client.writes[0];
-  assert.equal(w.table, 'manual_entries');
-  assert.equal(w.payload[0].price_usd, 1250);
-  assert.equal(w.payload[0].pax, 4);
-  assert.equal(w.payload[0].departure_id, 10);
-  assert.equal(w.payload[0].valid_until, '2026-11-15T00:00:00.000Z');
-  assert.match(p.doc.querySelector('#form-price .status').textContent, /Saqlandi/);
-  assert.equal(p.doc.getElementById('p-pax4').value, '', 'inputs cleared after saving');
-});
-
-test('price form: nothing is written without a departure, with junk, or with no values', async () => {
-  const p = await page();
-  submit(p, '#form-price'); await settle();
-  assert.equal(p.client.writes.length, 0);
-  await pick(p, 'p-company', 'F'); await pick(p, 'p-package', '1'); await pick(p, 'p-departure', '10');
-  submit(p, '#form-price'); await settle();
-  assert.match(p.doc.querySelector('#form-price .status').textContent, /Kamida bitta narx/);
-  p.doc.getElementById('p-pax4').value = 'abc';
-  submit(p, '#form-price'); await settle();
-  assert.match(p.doc.querySelector('#form-price .status').textContent, /butun son/);
-  assert.equal(p.client.writes.length, 0);
-});
-
-test('price form: a big deviation asks first and a "no" writes nothing', async () => {
-  const p = await page(DATA(), { confirm: false });
-  await pick(p, 'p-company', 'F'); await pick(p, 'p-package', '1'); await pick(p, 'p-departure', '10');
-  p.doc.getElementById('p-pax4').value = '2500';
-  submit(p, '#form-price'); await settle();
-  assert.equal(p.confirms.length, 1);
-  assert.equal(p.client.writes.length, 0);
-});
-
-test('price form: sold-out only is allowed; database errors become short messages', async () => {
-  const p = await page(DATA(), { writeError: { code: '42501', message: 'row-level security policy secret detail' } });
-  await pick(p, 'p-company', 'F'); await pick(p, 'p-package', '1'); await pick(p, 'p-departure', '10');
-  p.doc.getElementById('p-sold').value = 'yes';
-  submit(p, '#form-price'); await settle();
-  assert.equal(p.client.writes[0].payload[0].sold_out, true);
-  const msg = p.doc.querySelector('#form-price .status').textContent;
-  assert.match(msg, /Ruxsat yo'q/);
-  assert.ok(!/secret/.test(msg), 'raw database text must not reach the page');
 });
 
 test('new package + first date are both marked manual', async () => {
@@ -216,12 +169,12 @@ test('page never uses innerHTML for data: markup in names stays text', async () 
   const t = DATA();
   t.packages[0].name = '<img src=x onerror=alert(1)>';
   const p = await page(t);
-  await pick(p, 'p-company', 'F');
+  await chip(p, 'p-companies', 'F');
   assert.equal(p.doc.querySelectorAll('img').length, 0);
-  assert.match(p.doc.getElementById('p-package').textContent, /<img/);
+  assert.match(p.doc.getElementById('p-packages').textContent, /<img/);
 });
 
-// ---- Phase 6: easier price entry
+// ---- price table (Phase 6b)
 const DATA3 = () => {
   const d = DATA();
   d.departures = [
@@ -231,49 +184,103 @@ const DATA3 = () => {
     { id: 13, package_id: 1, date: '2026-11-26', sold_out: false, is_manual: false, active: true },
   ];
   d.price_current = [{ departure_id: 12, pax: 4, price_usd: 1190, is_manual: false, conflict: false },
-                     { departure_id: 12, pax: 2, price_usd: 1390, is_manual: true, conflict: false }];
+                     { departure_id: 12, pax: 2, price_usd: 1390, is_manual: true, conflict: false },
+                     { departure_id: 13, pax: 4, price_usd: 1190, is_manual: false, conflict: true }];
   return d;
 };
+async function open3(opts) {
+  const p = await page(DATA3(), opts);
+  await chip(p, 'p-companies', 'F'); await chip(p, 'p-packages', '1');
+  return p;
+}
 
-test('easier entry: the nearest upcoming date with seats is chosen, current prices become hints', async () => {
-  const p = await page(DATA3());
-  await pick(p, 'p-company', 'F'); await pick(p, 'p-package', '1');
-  assert.equal(p.doc.getElementById('p-departure').value, '12');          // not the past one, not the sold-out one
-  assert.match(text(p, 'p-current'), /4 kishi \$1190/);
-  assert.equal(p.doc.getElementById('p-pax4').placeholder, '1190');
-  assert.equal(p.doc.getElementById('p-pax2').placeholder, '1390');
-  assert.equal(p.doc.getElementById('p-pax3').placeholder, '');
-  assert.equal(p.doc.getElementById('p-pax4').value, '', 'hints are not values: empty stays "unchanged"');
+test('price table: company -> package shows every upcoming date as a row with the CURRENT prices in the cells', async () => {
+  const p = await open3();
+  assert.equal(p.doc.querySelectorAll('#p-table tbody tr').length, 3, 'past date is not shown');
+  assert.equal(cell(p, 12, 4).value, '1190');
+  assert.equal(cell(p, 12, 2).value, '1390');
+  assert.equal(cell(p, 12, 3).value, '', 'no price = empty cell');
+  assert.equal(p.doc.getElementById('s-11').checked, true, 'sold-out date is ticked');
+  assert.match(p.doc.querySelector('#p-table tbody tr:nth-child(3) .date').textContent, /⚠/, 'conflict is flagged');
+  assert.equal(p.doc.getElementById('p-save').disabled, true, 'nothing changed yet');
+  assert.equal(text(p, 'p-count'), "O'zgarish yo'q");
 });
 
-test('easier entry: "all dates" writes the price for every date of the package after one confirmation', async () => {
-  const p = await page(DATA3());
-  await pick(p, 'p-company', 'F'); await pick(p, 'p-package', '1');
-  assert.match(p.doc.getElementById('p-alllabel').textContent, /4 ta/);
-  p.doc.getElementById('p-pax4').value = '1200';
-  const box = p.doc.getElementById('p-all'); box.checked = true;
+test('price table: editing a cell marks it, counts it, and saving writes only what changed', async () => {
+  const p = await open3();
+  type(p, cell(p, 12, 4), '1 090');
+  type(p, cell(p, 12, 3), '1000');
+  assert.equal(cell(p, 12, 4).className, 'changed');
+  assert.equal(cell(p, 12, 2).className, 'manual', 'untouched manual price keeps its mark');
+  assert.match(text(p, 'p-count'), /2 ta o'zgarish/);
+  assert.equal(p.doc.getElementById('p-save').disabled, false);
   submit(p, '#form-price'); await settle();
-  assert.equal(p.confirms.length, 1);
-  assert.match(p.confirms[0], /4 ta sanaga/);
   assert.equal(p.client.writes.length, 1);
-  assert.deepEqual(p.client.writes[0].payload.map((r) => r.departure_id), [10, 11, 12, 13]);
-  assert.ok(p.client.writes[0].payload.every((r) => r.price_usd === 1200 && r.pax === 4));
-  assert.equal(box.checked, false, 'the box resets so the next save is not applied to everything by accident');
+  const w = p.client.writes[0];
+  assert.equal(w.table, 'manual_entries');
+  assert.deepEqual(w.payload.map((r) => [r.departure_id, r.pax, r.price_usd]).sort(), [[12, 3, 1000], [12, 4, 1090]]);
+  assert.equal(w.payload[0].valid_until, '2026-11-15T00:00:00.000Z', 'default 7 days');
+  assert.match(p.doc.querySelector('#form-price .status').textContent, /Saqlandi.*2 ta o'zgarish/);
 });
 
-test('easier entry: declining the "all dates" question writes nothing; a single-date package has no such option', async () => {
-  const p = await page(DATA3(), { confirm: false });
-  await pick(p, 'p-company', 'F'); await pick(p, 'p-package', '1');
-  p.doc.getElementById('p-pax4').value = '1200';
-  p.doc.getElementById('p-all').checked = true;
+test('price table: retyping the same price is not a change; an empty cell means unchanged', async () => {
+  const p = await open3();
+  type(p, cell(p, 12, 4), '1190');
+  type(p, cell(p, 12, 2), '');
+  assert.equal(text(p, 'p-count'), "O'zgarish yo'q");
   submit(p, '#form-price'); await settle();
   assert.equal(p.client.writes.length, 0);
-  const one = await page(DATA());
-  await pick(one, 'p-company', 'F'); await pick(one, 'p-package', '1');
-  assert.equal(one.doc.getElementById('p-allrow').style.display, 'none');
+  assert.match(p.doc.querySelector('#form-price .status').textContent, /Kamida bitta/);
 });
 
-test('easier entry: the last company and package are remembered and restored (storage is optional)', async () => {
+test('price table: junk blocks saving; a big deviation asks first and "no" writes nothing', async () => {
+  const p = await open3({ confirm: false });
+  type(p, cell(p, 12, 4), 'abc');
+  assert.match(text(p, 'p-count'), /butun son/);
+  submit(p, '#form-price'); await settle();
+  assert.equal(p.client.writes.length, 0);
+  type(p, cell(p, 12, 4), '2500');
+  submit(p, '#form-price'); await settle();
+  assert.equal(p.confirms.length, 1);
+  assert.match(p.confirms[0], /1 ta narx/);
+  assert.equal(p.client.writes.length, 0);
+});
+
+test('price table: ticking "Tugagan" writes a sold-out row; the validity selector sets valid_until', async () => {
+  const p = await open3();
+  p.doc.getElementById('s-12').checked = true; p.doc.getElementById('s-12').dispatchEvent(new p.win.Event('change'));
+  p.doc.getElementById('s-11').checked = false; p.doc.getElementById('s-11').dispatchEvent(new p.win.Event('change'));
+  const days = p.doc.getElementById('p-days'); days.value = '14'; days.dispatchEvent(new p.win.Event('change'));
+  submit(p, '#form-price'); await settle();
+  const rows = p.client.writes[0].payload;
+  assert.deepEqual(rows.map((r) => [r.departure_id, r.sold_out]).sort(), [[11, false], [12, true]]);
+  assert.equal(rows[0].valid_until, '2026-11-22T00:00:00.000Z');
+});
+
+test('price table: one price for all dates fills the cells (sold-out rows skipped) and saves nothing until "Saqlash"', async () => {
+  const p = await open3();
+  type(p, p.doc.getElementById('b-pax4'), '1200');
+  p.doc.getElementById('b-apply').click();
+  assert.equal(p.client.writes.length, 0);
+  assert.equal(cell(p, 12, 4).value, '1200'); assert.equal(cell(p, 13, 4).value, '1200');
+  assert.equal(cell(p, 11, 4).value, '', 'sold-out date is skipped');
+  assert.match(text(p, 'p-count'), /2 ta o'zgarish/);
+  submit(p, '#form-price'); await settle();
+  assert.deepEqual(p.client.writes[0].payload.map((r) => r.departure_id).sort(), [12, 13]);
+});
+
+test('price table: database errors become short messages and the button stays usable', async () => {
+  const p = await page(DATA3(), { writeError: { code: '42501', message: 'row-level security policy secret detail' } });
+  await chip(p, 'p-companies', 'F'); await chip(p, 'p-packages', '1');
+  type(p, cell(p, 12, 4), '1100');
+  submit(p, '#form-price'); await settle();
+  const msg = p.doc.querySelector('#form-price .status').textContent;
+  assert.match(msg, /Ruxsat yo'q/);
+  assert.ok(!/secret/.test(msg), 'raw database text must not reach the page');
+  assert.equal(p.doc.getElementById('p-save').disabled, false);
+});
+
+test('price table: the last company and package are remembered and restored (storage is optional)', async () => {
   const store = {}; const storage = { getItem: (k) => (k in store ? store[k] : null), setItem: (k, v) => { store[k] = v; } };
   const mk = async () => {
     const dom = new JSDOM('<!doctype html><body><main id="kiritish"></main></body>');
@@ -284,17 +291,15 @@ test('easier entry: the last company and package are remembered and restored (st
     return { doc, win: dom.window };
   };
   const a = await mk();
-  const el = a.doc.getElementById('p-company'); el.value = 'F'; el.dispatchEvent(new a.win.Event('change')); await settle();
-  const pk = a.doc.getElementById('p-package'); pk.value = '1'; pk.dispatchEvent(new a.win.Event('change')); await settle();
+  a.doc.querySelector('#p-companies [data-id="F"]').click(); await settle();
+  a.doc.querySelector('#p-packages [data-id="1"]').click(); await settle();
   assert.ok(store['umra.kiritish.last']);
-  const b = await mk(); await settle();                                  // the next visit
-  assert.equal(b.doc.getElementById('p-company').value, 'F');
-  assert.equal(b.doc.getElementById('p-package').value, '1');
-  assert.equal(b.doc.getElementById('p-departure').value, '12');
+  const b = await mk(); await settle();                                  // the next visit opens the same table
+  assert.ok(b.doc.querySelector('#p-companies .chip.on[data-id="F"]'));
+  assert.ok(b.doc.querySelector('#p-packages .chip.on[data-id="1"]'));
+  assert.equal(b.doc.querySelectorAll('#p-table tbody tr').length, 3);
   store['umra.kiritish.last'] = '{broken';                              // broken or stale storage must not break the page
-  const c = await mk();
-  assert.equal(c.doc.getElementById('p-company').value, '');
+  assert.equal((await mk()).doc.querySelectorAll('#p-table').length, 0);
   store['umra.kiritish.last'] = JSON.stringify({ co: 'ZZ', pkg: '9' });
-  const d = await mk();
-  assert.equal(d.doc.getElementById('p-company').value, '');
+  assert.equal((await mk()).doc.querySelectorAll('#p-table').length, 0);
 });

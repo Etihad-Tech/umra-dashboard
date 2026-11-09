@@ -122,117 +122,183 @@
     }
     function companyItems() { return state.companies.map(function (c) { return [c.id, c.short || c.name]; }); }
 
-    // ---- tab 1: price entry ------------------------------------------------------------
-    // Fewer clicks: the last company/package is remembered, the nearest upcoming date is already chosen,
-    // current prices are shown as grey hints (type only what changed) and one price can go to ALL dates.
+    // ---- tab 1: price table ----------------------------------------------------------------
+    // Pick a company, pick a package, then every upcoming date is a row with the CURRENT prices in editable cells.
+    // Change what you need, press "Saqlash". Changed cells turn gold, so it is always visible what will be saved.
     var LAST_KEY = 'umra.kiritish.last';
+    var COLS = [4, 3, 2, 1];
     function priceTab() {
-      var co = select('p-company', companyItems(), 'Kompaniya');
-      var pkg = select('p-package', [], 'Paket');
-      var dep = select('p-departure', [], 'Sana');
-      var cur = h('div', { 'class': 'cur', id: 'p-current' });
-      var inputs = {};
-      var priceFields = [1, 2, 3, 4].map(function (pax) {
-        inputs[pax] = h('input', { type: 'text', inputmode: 'numeric', autocomplete: 'off' });
-        return field(pax + ' kishi, USD', inputs[pax], 'p-pax' + pax);
-      });
-      var sold = select('p-sold', [['yes', 'Ha, tugagan'], ['no', "Yo'q, joy bor"]], "Joy holati: o'zgarmasin");
-      var note = h('input', { type: 'text', maxlength: '200' });
-      var days = h('input', { type: 'number', min: '1', max: '30', value: '7' });
-      var allBox = h('input', { type: 'checkbox', id: 'p-all', style: 'width:auto;margin-right:8px' });
-      var allLabel = h('label', { 'for': 'p-all', id: 'p-alllabel', style: 'display:inline', text: '' });
-      var allRow = h('div', { 'class': 'f', id: 'p-allrow', style: 'display:none' }, [allBox, allLabel]);
+      var companyBox = h('div', { 'class': 'chips', id: 'p-companies' });
+      var packageBox = h('div', { 'class': 'chips', id: 'p-packages' });
+      var tableBox = h('div', { id: 'p-tablebox', style: 'display:none' });
+      var count = h('span', { id: 'p-count', 'class': 'count', text: "O'zgarish yo'q" });
+      var days = h('select', { id: 'p-days' }, [h('option', { value: '7', text: '7 kun' }), h('option', { value: '14', text: '14 kun' }),
+        h('option', { value: '30', text: '30 kun' })]);
+      var btn = h('button', { type: 'submit', 'class': 'main', id: 'p-save', text: 'Saqlash', disabled: 'disabled' });
       var st = status();
-      var current = {}, depList = [];
+      var sel = { co: '', pkg: '' };
+      var rows = [];          // {dep, orig: {pax: price}, cells: {pax: input}, sold: checkbox}
+      var bulk = {};
 
       function remember() {
-        try { if (deps.storage) deps.storage.setItem(LAST_KEY, JSON.stringify({ co: co.value, pkg: pkg.value })); } catch (e) { /* optional */ }
+        try { if (deps.storage) deps.storage.setItem(LAST_KEY, JSON.stringify({ co: sel.co, pkg: sel.pkg })); } catch (e) { /* optional */ }
       }
-      function hasOption(sel, v) { return Array.prototype.some.call(sel.options, function (o) { return o.value === String(v); }); }
-      function onCompany() {
-        setOptions(pkg, [], 'Paket'); setOptions(dep, [], 'Sana'); cur.textContent = ''; depList = []; allRow.style.display = 'none';
-        if (!co.value) return Promise.resolve();
-        return loadPackages(co.value).then(function (ps) { setOptions(pkg, ps.map(function (p) { return [p.id, pkgLabel(p)]; }), 'Paket'); })
-          .catch(function () { say(st, MSG.loadFailed, true); });
+      function chips(box, items, active, onPick) {
+        while (box.firstChild) box.removeChild(box.firstChild);
+        items.forEach(function (it) {
+          var on = String(it[0]) === String(active);
+          box.appendChild(h('button', { type: 'button', 'class': 'chip' + (on ? ' on' : ''), 'data-id': String(it[0]), text: it[1],
+            on: { click: function () { onPick(it[0]); } } }));
+        });
       }
-      function onDeparture() {
-        current = {}; cur.textContent = '';
-        [1, 2, 3, 4].forEach(function (pax) { inputs[pax].placeholder = ''; });
-        if (!dep.value) return Promise.resolve();
-        return loadCurrent(dep.value).then(function (rows) {
-          rows.forEach(function (r) { current[r.pax] = r.price_usd; inputs[r.pax].placeholder = String(r.price_usd); });
-          cur.textContent = rows.length
-            ? 'Hozirgi narxlar: ' + rows.map(function (r) {
-                return r.pax + ' kishi $' + r.price_usd + (r.is_manual ? ' (qo\'lda)' : '') + (r.conflict ? ' ⚠' : '');
-              }).join(', ')
-            : "Hozircha narx yo'q.";
+
+      // ---- what changed? (read the cells) ----
+      function collect() {
+        var out = { rows: [], n: 0, bad: false, far: 0 };
+        var d = parseInt(days.value, 10);
+        rows.forEach(function (r) {
+          var prices = {}, changed = {};
+          COLS.forEach(function (pax) {
+            var raw = r.cells[pax].value;
+            var v = parsePrice(raw);
+            r.cells[pax].className = '';
+            if (r.manual[pax]) r.cells[pax].className = 'manual';
+            if (String(raw).trim() === '' || v === null) return;            // empty = unchanged
+            if (v !== v) { out.bad = true; r.cells[pax].className = 'bad'; return; }
+            if (v !== r.orig[pax]) { prices[pax] = v; changed[pax] = true; r.cells[pax].className = 'changed'; }
+          });
+          var soldOut = r.sold.checked !== !!r.dep.sold_out ? r.sold.checked : null;
+          r.tr.className = (Object.keys(changed).length || soldOut !== null) ? 'edited' : '';
+          var made = buildEntryRows(r.dep.id, prices, soldOut, null, d, now());
+          out.rows = out.rows.concat(made);
+          out.n += made.length;
+          out.far += bigDeviations(prices, r.orig).length;
+        });
+        return out;
+      }
+      function refresh() {
+        var c = collect();
+        count.textContent = c.bad ? MSG.badPrice : c.n ? c.n + " ta o'zgarish saqlanadi" : "O'zgarish yo'q";
+        count.className = 'count' + (c.bad ? ' bad' : c.n ? ' has' : '');
+        btn.disabled = !c.n && !c.bad;
+        return c;
+      }
+
+      // ---- the table ----
+      function renderTable(departures, prices) {
+        var today = new Date(now()).toISOString().slice(0, 10);
+        var upcoming = departures.filter(function (x) { return x.date >= today; });
+        var byDep = {};
+        prices.forEach(function (r) { (byDep[r.departure_id] = byDep[r.departure_id] || []).push(r); });
+        rows = [];
+        while (tableBox.firstChild) tableBox.removeChild(tableBox.firstChild);
+        if (!upcoming.length) {
+          tableBox.appendChild(h('p', { 'class': 'hint', text: "Bu paketda kelgusi sanalar yo'q. «Yangi paket / sana» bo'limida sana qo'shing." }));
+          tableBox.style.display = '';
+          refresh();
+          return;
+        }
+        // one price for every date: fills the cells, nothing is saved until "Saqlash"
+        bulk = {};
+        var bulkRow = h('div', { 'class': 'bulk' }, [h('div', { 'class': 'bulk-title', text: "Hamma sanalarga bir xil narx qo'yish (keyin «Saqlash» bosing)" })]);
+        var bulkIn = h('div', { 'class': 'bulk-in' });
+        COLS.forEach(function (pax) {
+          bulk[pax] = h('input', { type: 'text', inputmode: 'numeric', autocomplete: 'off', placeholder: pax + ' kishi', id: 'b-pax' + pax });
+          bulkIn.appendChild(bulk[pax]);
+        });
+        bulkIn.appendChild(h('button', { type: 'button', 'class': 'small', id: 'b-apply', text: 'Hammasiga qo\'yish', on: { click: function () {
+          rows.forEach(function (r) {
+            if (r.sold.checked) return;
+            COLS.forEach(function (pax) { var v = parsePrice(bulk[pax].value); if (v && v === v) r.cells[pax].value = String(v); });
+          });
+          refresh();
+        } } }));
+        bulkRow.appendChild(bulkIn);
+        tableBox.appendChild(bulkRow);
+
+        var head = h('tr', {}, [h('th', { text: 'Sana' })].concat(COLS.map(function (pax) { return h('th', { text: pax + ' kishi' }); }),
+          [h('th', { text: 'Tugagan' })]));
+        var body = h('tbody', {});
+        upcoming.forEach(function (dep) {
+          var cur = byDep[dep.id] || [], orig = {}, manual = {}, conflict = false, cells = {};
+          cur.forEach(function (r) { orig[r.pax] = r.price_usd; manual[r.pax] = !!r.is_manual; if (r.conflict) conflict = true; });
+          var tds = [h('td', { 'class': 'date', text: dep.date + (conflict ? ' ⚠' : '') })];
+          COLS.forEach(function (pax) {
+            var inp = h('input', { type: 'text', inputmode: 'numeric', autocomplete: 'off', placeholder: '—', id: 'c-' + dep.id + '-' + pax,
+              'aria-label': dep.date + ', ' + pax + ' kishi, USD' });
+            inp.value = orig[pax] ? String(orig[pax]) : '';
+            inp.addEventListener('input', refresh);
+            cells[pax] = inp;
+            tds.push(h('td', {}, [inp]));
+          });
+          var sold = h('input', { type: 'checkbox', id: 's-' + dep.id, 'aria-label': dep.date + ' tugagan' });
+          sold.checked = !!dep.sold_out;
+          sold.addEventListener('change', refresh);
+          tds.push(h('td', { 'class': 'soldcell' }, [sold]));
+          var tr = h('tr', {}, tds);
+          body.appendChild(tr);
+          rows.push({ dep: dep, orig: orig, manual: manual, cells: cells, sold: sold, tr: tr });
+        });
+        tableBox.appendChild(h('div', { 'class': 'tablewrap' }, [h('table', { id: 'p-table' }, [h('thead', {}, [head]), body])]));
+        tableBox.style.display = '';
+        refresh();
+      }
+
+      // ---- picking ----
+      function showCompanies() { chips(companyBox, companyItems(), sel.co, selectCompany); }
+      function selectPackage(id) {
+        sel.pkg = String(id); remember();
+        var list = state.packages[sel.co] || [];
+        chips(packageBox, list.map(function (p) { return [p.id, pkgLabel(p)]; }), sel.pkg, selectPackage);
+        say(st, '', false);
+        return loadDepartures(sel.pkg).then(function (ds) {
+          var ids = ds.map(function (x) { return x.id; });
+          return (ids.length ? q('price_current').select('departure_id,pax,price_usd,is_manual,conflict').in('departure_id', ids) : Promise.resolve({ data: [] }))
+            .then(function (r) { if (r.error) throw r.error; renderTable(ds, r.data || []); });
         }).catch(function () { say(st, MSG.loadFailed, true); });
       }
-      function onPackage() {
-        setOptions(dep, [], 'Sana'); cur.textContent = ''; depList = []; allBox.checked = false; allRow.style.display = 'none';
-        if (!pkg.value) return Promise.resolve();
-        remember();
-        return loadDepartures(pkg.value).then(function (ds) {
-          depList = ds;
-          setOptions(dep, ds.map(function (d) { return [d.id, d.date + (d.sold_out ? ' (tugagan)' : '')]; }), 'Sana');
-          if (ds.length > 1) { allLabel.textContent = "Barcha sanalarga qo'llash (" + ds.length + ' ta)'; allRow.style.display = ''; }
-          var today = new Date(now()).toISOString().slice(0, 10);
-          var upcoming = ds.filter(function (d) { return d.date >= today; });
-          var next = upcoming.filter(function (d) { return !d.sold_out; })[0] || upcoming[0];
-          if (next) { dep.value = String(next.id); return onDeparture(); }
+      function selectCompany(id) {
+        sel.co = String(id); sel.pkg = ''; rows = [];
+        tableBox.style.display = 'none'; refresh();
+        showCompanies();
+        while (packageBox.firstChild) packageBox.removeChild(packageBox.firstChild);
+        return loadPackages(sel.co).then(function (ps) {
+          chips(packageBox, ps.map(function (p) { return [p.id, pkgLabel(p)]; }), '', selectPackage);
+          remember();
         }).catch(function () { say(st, MSG.loadFailed, true); });
       }
       function restore() {
         var saved = null;
         try { saved = deps.storage && JSON.parse(deps.storage.getItem(LAST_KEY) || 'null'); } catch (e) { saved = null; }
-        if (!saved || !saved.co || !hasOption(co, saved.co)) return;
-        co.value = saved.co;
-        onCompany().then(function () {
-          if (saved.pkg && hasOption(pkg, saved.pkg)) { pkg.value = String(saved.pkg); return onPackage(); }
+        if (!saved || !saved.co || !state.companies.some(function (c) { return String(c.id) === String(saved.co); })) return;
+        selectCompany(saved.co).then(function () {
+          var ok = saved.pkg && (state.packages[sel.co] || []).some(function (p) { return String(p.id) === String(saved.pkg); });
+          if (ok) return selectPackage(saved.pkg);
         });
       }
 
-      co.addEventListener('change', function () { onCompany().then(function () { remember(); }); });
-      pkg.addEventListener('change', onPackage);
-      dep.addEventListener('change', onDeparture);
-
-      var btn = h('button', { type: 'submit', 'class': 'main', text: 'Saqlash' });
-      var form = h('form', { id: 'form-price', novalidate: 'novalidate' },
-        [field('Kompaniya', co, 'p-company'), field('Paket', pkg, 'p-package'), field('Sana', dep, 'p-departure'), allRow, cur]
-          .concat(priceFields, [field('Joy holati', sold, 'p-sold'), field('Izoh', note, 'p-note'),
-            field('Necha kun amal qiladi (1–30)', days, 'p-days'), btn, st]));
+      var form = h('form', { id: 'form-price', novalidate: 'novalidate' }, [
+        h('p', { 'class': 'hint', text: "Kompaniyani, so'ng paketni tanlang. Jadvalda kerakli narxni to'g'ridan-to'g'ri o'zgartiring (o'zgargan katak oltin rangda bo'ladi) va «Saqlash» ni bosing." }),
+        h('div', { 'class': 'step', text: '1. Kompaniya' }), companyBox,
+        h('div', { 'class': 'step', text: '2. Paket' }), packageBox,
+        h('div', { 'class': 'step', text: '3. Narxlar (USD, 1 kishi uchun)' }), tableBox,
+        h('div', { 'class': 'savebar' }, [count, h('label', { 'for': 'p-days', 'class': 'dayslabel', text: 'Narx amal qiladi:' }), days, btn]), st
+      ]);
       form.addEventListener('submit', function (ev) {
         ev.preventDefault();
-        var all = allBox.checked && depList.length > 1;
-        if (!all && !dep.value) { say(st, MSG.pick, true); return; }
-        var prices = {}, bad = false;
-        [1, 2, 3, 4].forEach(function (pax) {
-          var v = parsePrice(inputs[pax].value);
-          if (v !== v) bad = true;          // NaN
-          prices[pax] = v;
-        });
-        if (bad) { say(st, MSG.badPrice, true); return; }
-        var soldOut = sold.value === 'yes' ? true : sold.value === 'no' ? false : null;
-        var d = parseInt(days.value, 10);
-        if (!(d >= 1 && d <= 30)) d = 7;
-        var targets = all ? depList.map(function (x) { return x.id; }) : [Number(dep.value)];
-        var rows = [];
-        targets.forEach(function (id) { rows = rows.concat(buildEntryRows(id, prices, soldOut, note.value.trim(), d, now())); });
-        if (!rows.length) { say(st, MSG.needPrice, true); return; }
-        var far = bigDeviations(prices, current);
-        if (far.length && !confirmFn("Narx hozirgisidan 30% dan ko'proq farq qiladi (" + far.join(', ') + " kishi). Davom etamizmi?")) return;
-        if (all && !confirmFn('Narx ' + targets.length + " ta sanaga qo'llanadi. Davom etamizmi?")) return;
+        var c = refresh();
+        if (c.bad) { say(st, MSG.badPrice, true); return; }
+        if (!c.n) { say(st, MSG.needPrice, true); return; }
+        if (c.far && !confirmFn(c.far + " ta narx hozirgisidan 30% dan ko'proq farq qiladi. Davom etamizmi?")) return;
         btn.disabled = true;
-        q('manual_entries').insert(rows).then(function (r) {
-          btn.disabled = false;
-          if (r.error) { say(st, errorText(r.error), true); return; }
-          [1, 2, 3, 4].forEach(function (pax) { inputs[pax].value = ''; });
-          allBox.checked = false;
-          say(st, MSG.saved, false);
-          onDeparture();
+        q('manual_entries').insert(c.rows).then(function (r) {
+          if (r.error) { btn.disabled = false; say(st, errorText(r.error), true); return; }
+          say(st, MSG.saved + ' ' + c.n + " ta o'zgarish. Saytda bir necha daqiqada ko'rinadi.", false);
+          selectPackage(sel.pkg).then(function () { say(st, MSG.saved + ' ' + c.n + " ta o'zgarish. Saytda bir necha daqiqada ko'rinadi.", false); });
           refreshList();
         }).catch(function () { btn.disabled = false; say(st, MSG.failed, true); });
       });
+      showCompanies();
       restore();
       return form;
     }
@@ -262,7 +328,8 @@
       existing.addEventListener('change', function () { newFields.style.display = existing.value ? 'none' : ''; });
 
       var form = h('form', { id: 'form-add', novalidate: 'novalidate' }, [
-        field('Kompaniya', co, 'a-company'), field("Mavjud paketga sana qo'shish", existing, 'a-package'), newFields,
+        h('p', { 'class': 'hint', text: "Yangi sana: kompaniyani va paketni tanlang, sanani yozing. Paket ro'yxatda yo'q bo'lsa — paketni tanlamang, pastda yangi paket ma'lumotlarini kiriting." }),
+        field('Kompaniya', co, 'a-company'), field("Qaysi paketga sana qo'shiladi? (yangi paket bo'lsa — bo'sh qoldiring)", existing, 'a-package'), newFields,
         field('Chiqish sanasi', date, 'a-date'), field('Qaytish sanasi (ixtiyoriy)', ret, 'a-return'), btn, st]);
       form.addEventListener('submit', function (ev) {
         ev.preventDefault();
@@ -400,7 +467,7 @@
 
     // ---- shell ---------------------------------------------------------------------------
     function render() {
-      var tabs = [['Narx', priceTab()], ['Paket / sana', addTab()], ['Bog\'lash', matchTab()], ['Yozuvlar', listTab()]];
+      var tabs = [['Narxlar', priceTab()], ['Yangi paket / sana', addTab()], ["Bog'lash", matchTab()], ['Yozuvlar', listTab()]];
       var nav = h('div', { 'class': 'tabs', role: 'tablist' });
       var panels = tabs.map(function (t, i) {
         var panel = h('section', { 'class': 'panel', id: 'panel-' + i }, [t[1]]);
