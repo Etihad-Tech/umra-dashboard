@@ -3,8 +3,11 @@
  * After the login gate opens, this file reads packages, departures and current prices from Supabase
  * (row level security applies: only an active signed-in user gets rows) and fills window.UMRA with the
  * same structures the old static data/*.js files had:
- *   UMRA.etihad  our packages  [{id,name,n,tier,dep,hotel,cover,hq,bands:[[from,to,p4,p3,p2,p1],...]}]
- *   UMRA.allpk   competitors   [{co,pkg,cat,n,hotel,d:{date:[p4,p3,p2,p1,seats]}}]
+ *   UMRA.etihad  our packages  [{id,name,n,tier,dep,hotel,cover,hq,bands:[[from,to,p4,p3,p2,p1],...],man}]
+ *   UMRA.allpk   competitors   [{co,pkg,cat,n,hotel,d:{date:[p4,p3,p2,p1,seats]},man}]
+ *                man = {date: {pax: true}} for prices an editor typed in by hand (shown as "qo'lda kiritilgan")
+ *   UMRA.svc     services table data {B:{key:..}, S:{name:..}, F:{name:..}} from app_settings 'package_services'
+ *                (imported with collector.import_services; not a public file). Missing -> empty, never an error.
  *   UMRA.asOf / asOfText       when the OLDEST source last ran successfully (stale data must be visible)
  * Then it asks the page to draw again (window.__umraRefresh, set by index.html).
  * Money = integer USD, null = no data. No secrets here: only the public anon key is used (by auth.js).
@@ -19,6 +22,7 @@
   var NAMES = { B: 'ETIHAD', S: 'SAFO', F: 'MANDARIN' };
   var DOWN_AFTER = 3;                    // same number as the collector's source_down alert
   var WEEKDAYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+  var SERVICES_KEY = 'package_services';
 
   function pad(n) { return (n < 10 ? '0' : '') + n; }
   function tashkentToday(nowMs) {
@@ -32,6 +36,15 @@
   }
   function dayNo(s) { return Date.UTC(+s.slice(0, 4), +s.slice(5, 7) - 1, +s.slice(8, 10)) / 864e5; }
   function weekdayOf(s) { return WEEKDAYS[new Date(dayNo(s) * 864e5).getUTCDay()]; }
+  /** "thu", "Thursday", "THU" -> "thu"; anything else -> '' */
+  function normDay(x) { var k = String(x || '').trim().toLowerCase().slice(0, 3); return WEEKDAYS.indexOf(k) >= 0 ? k : ''; }
+  /** app_settings value -> {B:{},S:{},F:{}} with only plain objects inside */
+  function normSvc(v) {
+    var out = { B: {}, S: {}, F: {} };
+    if (!v || typeof v !== 'object') return out;
+    ['B', 'S', 'F'].forEach(function (co) { if (v[co] && typeof v[co] === 'object' && !Array.isArray(v[co])) out[co] = v[co]; });
+    return out;
+  }
 
   function hotelsText(hotels) {
     if (!Array.isArray(hotels)) return '';
@@ -84,9 +97,10 @@
   function buildModel(raw) {
     var today = raw.today;
     var meta = raw.meta || {};
-    var price = {};
+    var price = {}, manual = {};
     (raw.prices || []).forEach(function (r) {
       (price[r.departure_id] = price[r.departure_id] || {})[r.pax] = r.price_usd;
+      if (r.is_manual && r.price_usd != null) (manual[r.departure_id] = manual[r.departure_id] || {})[r.pax] = true;
     });
     var depsByPkg = {};
     (raw.departures || []).forEach(function (d) {
@@ -98,6 +112,7 @@
       return [p[4] == null ? null : p[4], p[3] == null ? null : p[3], p[2] == null ? null : p[2], p[1] == null ? null : p[1]];
     };
     var hasPrice = function (t) { return t.some(function (v) { return v != null; }); };
+    var addManual = function (man, depId, date) { if (manual[depId]) man[date] = Object.assign({}, manual[depId]); };
 
     // Safo does not publish the number of nights; try its day label ("9 kecha"), otherwise 0 = unknown (the page then skips the nights check)
     var nightsFrom = function (pk) {
@@ -110,9 +125,10 @@
       if (pk.active === false) return;
       var deps = depsByPkg[pk.id] || [];
       if (pk.company_id === 'B') {
-        var rows = [];
-        deps.forEach(function (d) { var t = tuple(d.id); if (hasPrice(t)) rows.push({ date: d.date, p: t }); });
+        var rows = [], man = {};
+        deps.forEach(function (d) { var t = tuple(d.id); if (hasPrice(t)) { rows.push({ date: d.date, p: t }); addManual(man, d.id, d.date); } });
         if (!rows.length) return;
+        rows.sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : 0; });
         var m = meta[pk.external_key] || {};
         var svc = pk.services || {};
         etihad.push({
@@ -121,23 +137,23 @@
           n: pk.nights || m.n || null,
           days: m.days || (pk.nights ? pk.nights + 1 : null),
           tier: TIER_LABEL[pk.tier] || m.tier || 'Comfort',
-          dep: svc.depday || weekdayOf(rows[0].date),
+          dep: normDay(svc.depday) || weekdayOf(rows[0].date),
           range: m.range || '',
           hotel: m.hotel || hotelsText(pk.hotels),
           cover: m.cover || '', hq: m.hq || '',
-          bands: buildBands(rows)
+          bands: buildBands(rows), man: man, svc: liveSvc(pk)
         });
       } else {
         if (!pk.tier) unmapped += 1;
-        var d = {};
+        var d = {}, cman = {};
         deps.forEach(function (x) {
           if (x.sold_out) return;
           var t = tuple(x.id);
-          if (hasPrice(t)) d[x.date] = t.concat([x.seats_left == null ? null : x.seats_left]);
+          if (hasPrice(t)) { d[x.date] = t.concat([x.seats_left == null ? null : x.seats_left]); addManual(cman, x.id, x.date); }
         });
         if (!Object.keys(d).length) return;
         allpk.push({ co: pk.company_id, pkg: pk.name || pk.external_key, key: pk.external_key,
-                     cat: pk.tier || null, n: nightsFrom(pk), hotel: hotelsText(pk.hotels), svc: liveSvc(pk), d: d });
+                     cat: pk.tier || null, n: nightsFrom(pk), hotel: hotelsText(pk.hotels), svc: liveSvc(pk), d: d, man: cman });
       }
     });
     etihad.sort(function (a, b) { return a.id < b.id ? -1 : 1; });
@@ -149,7 +165,7 @@
                       .map(function (s) { return NAMES[s.company_id] || s.company_id; });
     var text = oldest ? tashkentText(oldest) : "ma'lumot yo'q";
     if (down.length) text += ' · ' + down.join(', ') + ' ishlamayapti';
-    return { etihad: etihad, allpk: allpk, today: today, asOf: oldest, asOfText: text,
+    return { etihad: etihad, allpk: allpk, today: today, asOf: oldest, asOfText: text, svc: normSvc(raw.services),
              stats: { unmappedPackages: unmapped, down: down, etihad: etihad.length, competitors: allpk.length } };
   }
 
@@ -170,6 +186,13 @@
     return next(0);
   }
 
+  /** Services table data. Optional: a missing row, a missing read permission or an error gives empty data. */
+  function loadServices(client) {
+    return Promise.resolve().then(function () {
+      return fetchAll(client, 'app_settings', 'key,value', ['key'], function (q) { return q.eq('key', SERVICES_KEY); });
+    }).then(function (rows) { return rows && rows[0] ? rows[0].value : null; }, function () { return null; });
+  }
+
   function load(client, meta, nowMs) {
     var today = tashkentToday(nowMs);
     return Promise.all([
@@ -177,15 +200,17 @@
         function (q) { return q.eq('active', true); }),
       fetchAll(client, 'departures', 'id,package_id,date,sold_out,seats_left,active', ['id'],
         function (q) { return q.eq('active', true).gte('date', today); }),
-      fetchAll(client, 'price_current', 'departure_id,pax,price_usd', ['departure_id', 'pax']),
-      fetchAll(client, 'sources', 'id,company_id,enabled,last_ok_at,consecutive_failures', ['id'])
+      fetchAll(client, 'price_current', 'departure_id,pax,price_usd,is_manual', ['departure_id', 'pax']),
+      fetchAll(client, 'sources', 'id,company_id,enabled,last_ok_at,consecutive_failures', ['id']),
+      loadServices(client)
     ]).then(function (r) {
-      return buildModel({ packages: r[0], departures: r[1], prices: r[2], sources: r[3], meta: meta, today: today });
+      return buildModel({ packages: r[0], departures: r[1], prices: r[2], sources: r[3], services: r[4], meta: meta, today: today });
     });
   }
 
   var api = { buildModel: buildModel, buildBands: buildBands, tashkentToday: tashkentToday,
-              tashkentText: tashkentText, hotelsText: hotelsText, liveSvc: liveSvc, load: load, fetchAll: fetchAll };
+              tashkentText: tashkentText, hotelsText: hotelsText, liveSvc: liveSvc, load: load, fetchAll: fetchAll,
+              normDay: normDay, SERVICES_KEY: SERVICES_KEY };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 
   if (typeof window !== 'undefined' && !window.__UMRA_LIVE_NO_AUTOSTART) {

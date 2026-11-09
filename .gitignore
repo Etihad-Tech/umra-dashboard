@@ -1,9 +1,22 @@
 .DS_Store
 node_modules/
-.env
 *.log
 _backup/
 __pycache__/
 *.pyc
 .venv/
 .pytest_cache/
+
+# Secrets: every env file stays on the server. Only the *.env.example templates are committed.
+.env
+.env.*
+*.env
+!.env.example
+!*.env.example
+
+# Server-only state: database dumps (contain password hashes and 2FA secrets) and the deploy history
+deploy/backups/
+deploy/deploy-history.log
+
+# Business data that must not be public (imported into Supabase with collector.import_services)
+private/

@@ -1,7 +1,8 @@
 # Live dashboard (Phase 6)
 
 The dashboard no longer ships prices in the page. After login, `live.js` reads from Supabase
-(`packages`, `departures`, `price_current`, `sources`) and fills the same structures the page always used.
+(`packages`, `departures`, `price_current`, `sources`, and the `app_settings` row `package_services`) and fills
+the same structures the page always used.
 Row Level Security applies: only an active signed-in user gets rows. The files `data/competitors.js`,
 `data/prices.js`, `data/events.js`, `data/info.js` and `data/packages.js` are deleted.
 
@@ -10,7 +11,8 @@ Row Level Security applies: only an active signed-in user gets rows. The files `
 | Our packages, dates, prices | database (`B` = ETIHAD, filled by `python -m collector.run --source etihad`) |
 | Competitor prices and dates | database (Mandarin, Safo collectors) |
 | Photos and hotel text of our packages | `etihad-meta.js` (static, no prices) |
-| Services table | `data/services.js` (static, no prices) |
+| Services table | Supabase `app_settings` row `package_services` (imported with `python3 -m collector.import_services`, see `DEPLOY.md` step 7; the JSON file is not in git). Live hotels/airline from the collector win for competitors. |
+| "qo'lda kiritilgan" badge | `price_current.is_manual`: a price an editor typed in, shown on the card, the tiles, the date table and the chart tooltip |
 | "Today" | real date in Asia/Tashkent (UTC+5) |
 | Freshness pill | the OLDEST `sources.last_ok_at`; a source with 3+ failures is named |
 | Refresh | every 5 minutes and when the tab becomes visible again |

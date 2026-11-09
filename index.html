@@ -18,11 +18,12 @@
 <script src="./support.js"></script>
 <style>html:not(.umra-loaded) main{display:none!important}#umra-loading{display:none;color:#8CA096;font:500 14px Inter,system-ui,sans-serif;text-align:center;padding:90px 16px}html:not(.umra-loaded) #umra-loading{display:block}</style>
 <script src="./etihad-meta.js"></script>
-<script src="./data/services.js"></script>
 <script src="./live.js"></script>
 </head>
 <body>
 <div id="umra-loading" role="status">Yuklanmoqda…</div>
+<!-- Event props are written as sc-camel-on-click (the runtime turns it into onClick) instead of on-click attributes:
+     the browser would treat onClick as an inline event handler, which the Content-Security-Policy forbids. -->
 <x-dc>
 <helmet>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -79,7 +80,7 @@ button:focus-visible{outline:2px solid #D8B15E;outline-offset:2px}
 </div>
 <div class="scroller">
 <sc-for list="{{cards}}" as="k" hint-placeholder-count="4">
-<button class="pk" onClick="{{k.click}}" style="{{k.box}}">
+<button class="pk" sc-camel-on-click="{{k.click}}" style="{{k.box}}">
 <div style="{{k.photo}}">
 <div style="{{k.bg}}"></div>
 <div style="{{k.shade}}"></div>
@@ -89,6 +90,7 @@ button:focus-visible{outline:2px solid #D8B15E;outline-offset:2px}
 <div style="padding: 8px 10px 10px; display: flex; flex-direction: column; gap: 1px; text-align: left">
 <span style="font-size: 11.5px; color: #8CA096">{{k.line}}</span>
 <span class="num" style="font-weight: 700; font-size: 15px; color: #E5C77F">{{k.price}}</span>
+<sc-if value="{{k.manual}}"><span style="{{k.manualStyle}}">qo'lda kiritilgan</span></sc-if>
 </div>
 </button>
 </sc-for>
@@ -98,7 +100,7 @@ button:focus-visible{outline:2px solid #D8B15E;outline-offset:2px}
 </div>
 <div class="scroller">
 <sc-for list="{{dts}}" as="k" hint-placeholder-count="5">
-<button class="num" onClick="{{k.click}}" style="{{k.style}}"><span style="{{k.dayStyle}}">{{k.day}}</span><span style="{{k.subStyle}}">{{k.sub}}</span></button>
+<button class="num" sc-camel-on-click="{{k.click}}" style="{{k.style}}"><span style="{{k.dayStyle}}">{{k.day}}</span><span style="{{k.subStyle}}">{{k.sub}}</span></button>
 </sc-for>
 </div>
 <div style="display: flex; flex-direction: column; gap: 12px">
@@ -116,7 +118,7 @@ button:focus-visible{outline:2px solid #D8B15E;outline-offset:2px}
 </div>
 <div style="display: flex; flex-wrap: wrap; gap: 6px">
 <sc-for list="{{row.opts}}" as="o" hint-placeholder-count="2">
-<button onClick="{{o.click}}" style="{{o.style}}"><span>{{o.label}}</span></button>
+<button sc-camel-on-click="{{o.click}}" style="{{o.style}}"><span>{{o.label}}</span></button>
 </sc-for>
 </div>
 </div>
@@ -137,7 +139,7 @@ button:focus-visible{outline:2px solid #D8B15E;outline-offset:2px}
 <div style="display: flex; justify-content: space-between; align-items: flex-end; gap: 8px; flex-wrap: wrap; padding: 0 2px">
 <div style="display: flex; gap: 3px; padding: 3px; border-radius: 13px; background: rgba(0,0,0,.45); border: 1px solid rgba(255,255,255,.07)">
 <sc-for list="{{paxTabs}}" as="t" hint-placeholder-count="4">
-<button class="num" onClick="{{t.click}}" style="{{t.style}}">{{t.label}}</button>
+<button class="num" sc-camel-on-click="{{t.click}}" style="{{t.style}}">{{t.label}}</button>
 </sc-for>
 </div>
 </div>
@@ -146,6 +148,7 @@ button:focus-visible{outline:2px solid #D8B15E;outline-offset:2px}
 <div style="{{l.box}}">
 <div style="display: flex; align-items: center; gap: 6px"><span style="{{l.badge}}">{{l.letter}}</span><span style="font-size: 10.5px; font-weight: 600; letter-spacing: .06em; color: #AEBDB5">{{l.tag}}</span></div>
 <div class="num serif" style="font-weight: 600; font-size: 21px; letter-spacing: -.01em">{{l.value}}</div>
+<sc-if value="{{l.manual}}"><span style="{{l.manualStyle}}">qo'lda kiritilgan</span></sc-if>
 </div>
 </sc-for>
 </div>
@@ -160,10 +163,10 @@ button:focus-visible{outline:2px solid #D8B15E;outline-offset:2px}
 <defs>
 <linearGradient id="ga" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="{{lc.B}}" stop-opacity=".16"></stop><stop offset="1" stop-color="{{lc.B}}" stop-opacity="0"></stop></linearGradient>
 </defs>
-<path d="{{area}}" fill="url(#ga)" stroke="none"></path>
-<path d="{{lines.F}}" fill="none" stroke="{{lc.F}}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"></path>
-<path d="{{lines.S}}" fill="none" stroke="{{lc.S}}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"></path>
-<path d="{{lines.B}}" fill="none" stroke="{{lc.B}}" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"></path>
+<path sc-camel-d="{{area}}" fill="url(#ga)" stroke="none"></path>
+<path sc-camel-d="{{lines.F}}" fill="none" stroke="{{lc.F}}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"></path>
+<path sc-camel-d="{{lines.S}}" fill="none" stroke="{{lc.S}}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"></path>
+<path sc-camel-d="{{lines.B}}" fill="none" stroke="{{lc.B}}" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"></path>
 </svg>
 </div>
 <div style="{{cursor}}"></div>
@@ -176,9 +179,9 @@ button:focus-visible{outline:2px solid #D8B15E;outline-offset:2px}
 <div style="display: flex; align-items: center; gap: 7px; font-size: 12px"><span style="{{t.dot}}"></span><span style="color: #B9C7BF; flex: 1">{{t.name}}</span><span class="num" style="font-weight: 700">{{t.value}}</span></div>
 </sc-for>
 </div>
-<div style="position: absolute; left: 0; right: 0; top: 0; bottom: 0; display: flex" onMouseLeave="{{leave}}">
+<div style="position: absolute; left: 0; right: 0; top: 0; bottom: 0; display: flex" sc-camel-on-mouse-leave="{{leave}}">
 <sc-for list="{{hits}}" as="h" hint-placeholder-count="6">
-<button class="hit" aria-label="{{h.label}}" onClick="{{h.click}}" onMouseEnter="{{h.enter}}"></button>
+<button class="hit" aria-label="{{h.label}}" sc-camel-on-click="{{h.click}}" sc-camel-on-mouse-enter="{{h.enter}}"></button>
 </sc-for>
 </div>
 </div>
@@ -207,7 +210,7 @@ button:focus-visible{outline:2px solid #D8B15E;outline-offset:2px}
 </div>
 <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; border-radius: 18px; background: rgba(0,0,0,.3); border: 1px solid rgba(255,255,255,.06); overflow: hidden">
 <sc-for list="{{groups}}" as="g" hint-placeholder-count="4">
-<div onClick="{{g.click}}" style="{{g.box}}">
+<div sc-camel-on-click="{{g.click}}" style="{{g.box}}">
 <div style="display: flex; align-items: flex-end; justify-content: center; gap: 4px; height: 150px; padding: 0 2px">
 <sc-for list="{{g.cols}}" as="c" hint-placeholder-count="3">
 <div title="{{c.hint}}" style="display: flex; flex-direction: column; justify-content: flex-end; align-items: center; flex: 1 1 0; min-width: 0; height: 100%">
@@ -242,15 +245,15 @@ button:focus-visible{outline:2px solid #D8B15E;outline-offset:2px}
 <div style="padding: 11px 2px; text-align: center">MANDARIN</div>
 </div>
 <sc-for list="{{rows}}" as="r" hint-placeholder-count="4">
-<button class="row" onClick="{{r.click}}" style="{{r.rowStyle}}">
+<button class="row" sc-camel-on-click="{{r.click}}" style="{{r.rowStyle}}">
 <div style="padding: 9px 8px; text-align: left; display: flex; flex-direction: column; gap: 1px"><span class="num" style="font-weight: 700; font-size: 14px">{{r.date}}</span><span style="font-size: 10.5px; color: #8CA096">{{r.wd}}</span></div>
-<div class="num" style="{{r.cB}}">{{r.b}}</div>
-<div class="num" style="{{r.cS}}">{{r.s}}</div>
-<div class="num" style="{{r.cF}}">{{r.f}}</div>
+<div class="num" style="{{r.cB}}">{{r.b}}<sc-if value="{{r.mB}}"><span style="{{r.mStyle}}">qo'lda kiritilgan</span></sc-if></div>
+<div class="num" style="{{r.cS}}">{{r.s}}<sc-if value="{{r.mS}}"><span style="{{r.mStyle}}">qo'lda kiritilgan</span></sc-if></div>
+<div class="num" style="{{r.cF}}">{{r.f}}<sc-if value="{{r.mF}}"><span style="{{r.mStyle}}">qo'lda kiritilgan</span></sc-if></div>
 </button>
 </sc-for>
 </div>
-<button onClick="{{toggleAll}}" style="min-height: 44px; border-radius: 14px; border: 1px solid rgba(216,177,94,.3); background: rgba(216,177,94,.07); color: #E5C77F; font-weight: 600; font-size: 14px; cursor: pointer">{{allLabel}}</button>
+<button sc-camel-on-click="{{toggleAll}}" style="min-height: 44px; border-radius: 14px; border: 1px solid rgba(216,177,94,.3); background: rgba(216,177,94,.07); color: #E5C77F; font-weight: 600; font-size: 14px; cursor: pointer">{{allLabel}}</button>
 <div style="display: flex; flex-wrap: wrap; gap: 12px; font-size: 11.5px; color: #8CA096; padding: 0 2px"><span><span style="color: #4FBF8F">●</span> eng arzon</span><span><span style="color: #E0A458">●</span> o'rtacha</span><span><span style="color: #D9686C">●</span> eng qimmat</span><span>Narx $ da, bir kishiga</span></div>
 </section>
 
@@ -280,7 +283,7 @@ button:focus-visible{outline:2px solid #D8B15E;outline-offset:2px}
 <sc-for list="{{svcRows}}" as="r" hint-placeholder-count="5">
 <div style="display: grid; grid-template-columns: minmax(0,1.15fr) minmax(0,1.05fr) minmax(0,1fr) minmax(0,1fr); align-items: stretch; border-top: 1px solid #E6DEC8">
 <div style="padding: 12px 4px 12px 9px; min-width: 0; display: flex; align-items: center; gap: 6px; font-size: 11.5px; word-break: break-word; font-weight: 600; color: #1D2C26">
-<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#0E5A44" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex: none"><path d="{{r.icon}}"></path></svg>
+<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#0E5A44" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex: none"><path sc-camel-d="{{r.icon}}"></path></svg>
 <span>{{r.label}}</span>
 </div>
 <sc-for list="{{r.cells}}" as="c" hint-placeholder-count="3">
@@ -319,8 +322,15 @@ class Component extends DCLogic {
     const WD = ['yakshanba', 'dushanba', 'seshanba', 'chorshanba', 'payshanba', 'juma', 'shanba'];
     const WS = ['Yak', 'Du', 'Se', 'Chor', 'Pay', 'Ju', 'Sha'];
     const MS = ['yan', 'fev', 'mar', 'apr', 'may', 'iyn', 'iyl', 'avg', 'sen', 'okt', 'noy', 'dek'];
-    const wd = (d) => WD[new Date(dms(d) * 864e5).getUTCDay()];
+    const wd = (d) => (d ? WD[new Date(dms(d) * 864e5).getUTCDay()] : '');
     const ws = (d) => WS[new Date(dms(d) * 864e5).getUTCDay()];
+    const WDK = { sun: 'yakshanba', mon: 'dushanba', tue: 'seshanba', wed: 'chorshanba', thu: 'payshanba', fri: 'juma', sat: 'shanba' };
+    const nightsTxt = (n) => (n ? n + ' kecha' : '');
+    const join = (parts) => parts.filter((x) => x).join(' · ');
+    // manual (hand-typed) prices: man = {date: {pax: true}} from live.js
+    const MANUAL = 'qo\'lda kiritilgan';
+    const manStyle = (sz) => 'display: block; margin-top: 2px; font-family: Inter, system-ui, sans-serif; font-size: ' + sz + 'px; font-weight: 700; letter-spacing: .02em; line-height: 1.15; color: #7FE3B0; white-space: normal';
+    const isMan = (o, d, x) => !!(o && o.man && o.man[d] && o.man[d][x]);
     const LN = { B: 'ETIHAD', S: 'SAFO', F: 'MANDARIN' };
     const LET = { B: 'E', S: 'S', F: 'M' };
     const LC = { B: '#E3BD62', S: '#F08A5D', F: '#5AA9F0' };
@@ -332,6 +342,7 @@ class Component extends DCLogic {
     const badge = (co, sz, cc) => 'display: inline-flex; align-items: center; justify-content: center; flex: none; width: ' + sz + 'px; height: ' + sz + 'px; border-radius: ' + Math.round(sz * 0.32) + 'px; font-family: \'Fraunces\', serif; font-weight: 700; font-size: ' + Math.round(sz * 0.55) + 'px; color: ' + (cc || LC[co]) + '; background: ' + (cc || LC[co]) + '1F; border: 1px solid ' + (cc || LC[co]) + '99; box-shadow: none';
 
     const datesOf = (o) => { const out = []; o.bands.forEach((b) => { for (let d = b[0]; d <= b[1]; d = addDays(d, 7)) if (d >= TODAY) out.push(d); }); return out; };
+    const depName = (o) => WDK[o.dep] || wd(datesOf(o)[0]);
     const priceOn = (o, d) => { const b = o.bands.find((x) => d >= x[0] && d <= x[1] && dms(d) % 7 === dms(x[0]) % 7); return b ? { 4: b[2], 3: b[3], 2: b[4], 1: b[5] } : null; };
     const nearest = (o, d) => { const l = datesOf(o); let best = null; l.forEach((x) => { const df = Math.abs(dms(x) - dms(d)); if (best === null || df < best.df) best = { d: x, df }; }); return best && best.df <= 3 ? best.d : null; };
 
@@ -389,11 +400,12 @@ class Component extends DCLogic {
       const on = o === our;
       const nd = date ? nearest(o, date) : null;
       const pr = nd ? priceOn(o, nd) : null;
-      const shown = pr ? (pr[4] ? fmt(pr[4]) + ' · 4 kishi' : pr[3] ? fmt(pr[3]) + ' · 3 kishi' : '') : 'bu sanada yo\'q';
+      const shownPx = pr ? [4, 3, 2, 1].find((x) => pr[x]) : null;   // the largest room that has a price
+      const shown = pr ? (shownPx ? fmt(pr[shownPx]) + ' · ' + shownPx + ' kishi' : 'narx yo\'q') : 'bu sanada yo\'q';
       return {
         name: o.name, tier: o.tier,
-        line: o.n + ' kecha · ' + (o.dep === 'thu' ? 'payshanba' : 'shanba'),
-        price: shown,
+        line: join([nightsTxt(o.n), depName(o)]),
+        price: shown, manual: !!shownPx && isMan(o, nd, shownPx), manualStyle: manStyle(10),
         photo: 'position: relative; height: 120px; overflow: hidden; background: linear-gradient(135deg, ' + (TGRAD[o.tier] || '#0E2B27') + ')',
         bg: 'position: absolute; inset: 0; background: linear-gradient(180deg, rgba(5,13,10,0) 35%, rgba(5,13,10,.9)), url(' + (o.hq || o.cover) + ') center / cover no-repeat;' + '',
         shade: 'position: absolute; inset: 0; background: linear-gradient(180deg, rgba(5,13,10,0) 35%, rgba(5,13,10,.9))',
@@ -408,13 +420,14 @@ class Component extends DCLogic {
     const pickIdx = (co) => Math.min(Math.max(+(S['p' + co] || 0), 0), Math.max(cands[co].length - 1, 0));
     const chosen = { S: cands.S[pickIdx('S')] || null, F: cands.F[pickIdx('F')] || null };
     const priceOfM = (m, x) => (m ? m.r.d[m.d][4 - x] || null : null);
+    const manOfM = (m, x) => !!(m && priceOfM(m, x) && isMan(m.r, m.d, x));
     const forDate = (co, d) => { const l = candsFor(co, d); const pref = chosen[co]; return (pref && l.find((m) => m.r.pkg === pref.r.pkg)) || l[0] || null; };
 
     const ourPrice = our && date ? priceOn(our, date) : null;
     const cols = [
-      { co: 'B', name: our ? our.name : '', get: (x) => (ourPrice && ourPrice[x]) || null },
-      { co: 'S', name: chosen.S ? chosen.S.r.pkg + ' (' + short(chosen.S.d) + ')' : 'mos paket yo\'q', get: (x) => priceOfM(chosen.S, x) },
-      { co: 'F', name: chosen.F ? chosen.F.r.pkg + ' (' + short(chosen.F.d) + ')' : 'mos paket yo\'q', get: (x) => priceOfM(chosen.F, x) }
+      { co: 'B', name: our ? our.name : '', get: (x) => (ourPrice && ourPrice[x]) || null, man: (x) => !!(ourPrice && ourPrice[x]) && isMan(our, date, x) },
+      { co: 'S', name: chosen.S ? chosen.S.r.pkg + ' (' + short(chosen.S.d) + ')' : 'mos paket yo\'q', get: (x) => priceOfM(chosen.S, x), man: (x) => manOfM(chosen.S, x) },
+      { co: 'F', name: chosen.F ? chosen.F.r.pkg + ' (' + short(chosen.F.d) + ')' : 'mos paket yo\'q', get: (x) => priceOfM(chosen.F, x), man: (x) => manOfM(chosen.F, x) }
     ];
     const all = [];
     [1, 2, 3, 4].forEach((x) => cols.forEach((c) => { const p = c.get(x); if (p) all.push(p); }));
@@ -445,7 +458,7 @@ class Component extends DCLogic {
           const col = present.length < 2 || p === mn ? GREEN : p === mx ? RED : ORANGE;
           return {
             label: p ? String(p) : '—',
-            hint: LN[c.co] + ' · ' + x + ' kishi · ' + (p ? fmt(p) : 'narx yo\'q') + (c.name ? ' · ' + c.name : ''),
+            hint: LN[c.co] + ' · ' + x + ' kishi · ' + (p ? fmt(p) : 'narx yo\'q') + (p && c.man(x) ? ' · ' + MANUAL : '') + (c.name ? ' · ' + c.name : ''),
             labelStyle: 'font-size: 9px; letter-spacing: -.03em; font-weight: 700; line-height: 1.1; margin-bottom: 4px; color: ' + (p ? '#F1EEE4' : '#5F7A6F'),
             badge: badge(c.co, 17, col), letter: LET[c.co],
             bar: p ? 'width: 100%; max-width: 20px; border-radius: 6px 6px 2px 2px; transform-origin: bottom; animation: grow .9s cubic-bezier(.2,.7,.2,1) both; animation-delay: ' + (gi * 0.08 + i * 0.06) + 's; transition: height .6s cubic-bezier(.2,.7,.2,1), filter .2s; background: linear-gradient(180deg, ' + col + 'EE, ' + col + '40); box-shadow: inset 0 1px 0 rgba(255,255,255,.22); height: ' + Math.max(8, Math.round((p - base) / Math.max(vmax - base, 1) * H) + 8) + 'px' + (c.co === 'B' ? '; box-shadow: inset 0 0 0 1px rgba(241,221,166,.9), inset 0 1px 0 rgba(255,255,255,.3)' : '') : 'height: 0'
@@ -469,13 +482,16 @@ class Component extends DCLogic {
 
     // ---- sanalar bo'yicha qatorlar ----
     const series = { B: [], S: [], F: [] };
+    const seriesM = { B: [], S: [], F: [] };   // is the value at this date typed in by hand?
     const rowsAll = ourDates.map((d) => {
       const pr = priceOn(our, d);
       const b = pr && pr[px] ? pr[px] : null;
       const ms = forDate('S', d), mf = forDate('F', d);
       const s = priceOfM(ms, px), f = priceOfM(mf, px);
+      const mb = !!b && isMan(our, d, px), mS = manOfM(ms, px), mF = manOfM(mf, px);
       series.B.push(b); series.S.push(s); series.F.push(f);
-      return { d, b, s, f };
+      seriesM.B.push(mb); seriesM.S.push(mS); seriesM.F.push(mF);
+      return { d, b, s, f, mb, mS, mF };
     });
 
     const stOf = (r) => {
@@ -498,6 +514,7 @@ class Component extends DCLogic {
       const st = stOf(r);
       return {
         date: short(r.d), wd: wd(r.d), b: r.b ? fmt(r.b) : '—', s: r.s ? fmt(r.s) : '—', f: r.f ? fmt(r.f) : '—',
+        mB: r.mb, mS: r.mS, mF: r.mF, mStyle: manStyle(8.5),
         cB: cell(r.b, true), cS: cell(r.s), cF: cell(r.f), st: st.t, stStyle: st.s,
         rowStyle: 'display: grid; grid-template-columns: minmax(0,1.3fr) minmax(0,1fr) minmax(0,1fr) minmax(0,1fr); align-items: center; width: 100%; border: 0; border-top: 1px solid rgba(255,255,255,.06); color: inherit; font-size: 13px; cursor: pointer; padding: 0; background: ' + (r.d === date ? 'rgba(216,177,94,.09)' : 'transparent'),
         click: () => this.setState({ date: r.d })
@@ -562,7 +579,7 @@ class Component extends DCLogic {
     const cursor = 'position: absolute; top: 0; bottom: 0; width: 1px; background: linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.45), rgba(255,255,255,.04)); left: ' + xPct(ci) + '%; pointer-events: none; transition: left .5s cubic-bezier(.2,.8,.2,1)';
     const right = xPct(ci) > 55;
     const tip = 'position: absolute; top: 6px; ' + (right ? 'right: ' + (100 - xPct(ci) + 2) + '%' : 'left: ' + (xPct(ci) + 2) + '%') + '; min-width: 134px; padding: 9px 11px; border-radius: 13px; display: flex; flex-direction: column; gap: 4px; background: rgba(7,18,14,.88); border: 1px solid rgba(216,177,94,.25); backdrop-filter: blur(10px); box-shadow: 0 12px 30px rgba(0,0,0,.55); pointer-events: none; transition: left .5s cubic-bezier(.2,.8,.2,1), right .5s cubic-bezier(.2,.8,.2,1)';
-    const tipRows = ['B', 'S', 'F'].sort((a, b) => (series[b][ci] || 0) - (series[a][ci] || 0)).map((co) => ({ name: LN[co], value: series[co][ci] ? fmt(series[co][ci]) : 'yo\'q', dot: 'width: 8px; height: 8px; border-radius: 50%; background: ' + RC[co] }));
+    const tipRows = ['B', 'S', 'F'].sort((a, b) => (series[b][ci] || 0) - (series[a][ci] || 0)).map((co) => ({ name: LN[co], value: series[co][ci] ? fmt(series[co][ci]) + (seriesM[co][ci] ? ' · qo\'lda' : '') : 'yo\'q', dot: 'width: 8px; height: 8px; border-radius: 50%; background: ' + RC[co] }));
     const tipDate = cd ? short(cd) + ' · ' + wd(cd) : '';
     const step = Math.max(1, Math.ceil(n / 6));
     const xlab = ourDates.map((d, i) => ({ text: (i === ci || (i % step === 0 && Math.abs(i - ci) > 1)) ? short(d) : '', style: 'flex: 1 1 0; min-width: 0; text-align: center; font-size: 10.5px; color: ' + (i === ci ? '#F1DDA6' : '#70877C') + '; font-weight: ' + (i === ci ? 700 : 500) }));
@@ -576,7 +593,7 @@ class Component extends DCLogic {
       if (co === 'B') delta = 'bizning narx';
       else if (v && b) { const df = v - b; delta = df === 0 ? 'bir xil narx' : (df > 0 ? '+' : '−') + fmt(Math.abs(df)) + ' ETIHADdan'; dc = df === 0 ? '#9FB2A9' : df > 0 ? '#5FE3A0' : '#FF8D90'; }
       else delta = 'mos paket yo\'q';
-      return { tag: LN[co], letter: LET[co], badge: badge(co, 20, RC[co]), value: v ? fmt(v) : '—', delta, deltaStyle: 'font-size: 10.5px; font-weight: 600; color: ' + dc, box: 'padding: 10px 10px 9px; border-radius: 16px; display: flex; flex-direction: column; gap: 4px; background: linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.02)); border: 1px solid ' + RC[co] + '55' };
+      return { tag: LN[co], letter: LET[co], badge: badge(co, 20, RC[co]), value: v ? fmt(v) : '—', manual: !!v && seriesM[co][ci], manualStyle: manStyle(9.5), delta, deltaStyle: 'font-size: 10.5px; font-weight: 600; color: ' + dc, box: 'padding: 10px 10px 9px; border-radius: 16px; display: flex; flex-direction: column; gap: 4px; background: linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.02)); border: 1px solid ' + RC[co] + '55' };
     });
 
     // ---- xulosa ----
@@ -602,14 +619,14 @@ class Component extends DCLogic {
         Object.keys(all).find((k) => want.some((w) => w.length > 5 && (slug(k).indexOf(w + '-') === 0 || w.indexOf(slug(k) + '-') === 0)));
       return hit ? all[hit] : null;
     };
-    const svOf = (co) => co === 'B' ? (our ? SV.B[our.id] : null) : (chosen[co] ? (chosen[co].r.svc || staticSvc(co, chosen[co].r)) : null);
+    const svOf = (co) => co === 'B' ? (our ? (SV.B || {})[our.id] || our.svc || null : null) : (chosen[co] ? (chosen[co].r.svc || staticSvc(co, chosen[co].r)) : null);
     const sv = { B: svOf('B'), S: svOf('S'), F: svOf('F') };
     const cellBox = (co) => 'padding: 11px 6px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; text-align: center; border-left: 1px solid #E6DEC8; background: ' + (co === 'B' ? 'linear-gradient(180deg, #FCF2CB, #F8E7A9)' : 'transparent');
     const T1 = 'font-size: 12px; font-weight: 600; line-height: 1.25; color: #1D2C26';
     const mk2 = (co, ok, t1, t2) => ({ box: cellBox(co), isOk: ok === true, isNo: ok === false, t1, t1Style: T1 + (t1 === '—' ? '; color: #A7AFA9; font-weight: 500' : ''), t2: t2 || '' });
     const dash = (co) => mk2(co, null, '—', '');
     const airCell = (co) => { const s = sv[co]; if (!s) return dash(co); return co === 'B' ? mk2(co, true, 'Kiritilgan', s.air) : mk2(co, true, s.air, ''); };
-    const hotelCell = (co, city) => { const s = sv[co]; if (!s) return dash(co); const hs = (s.hot || []).filter((h) => h[0] === city); if (!hs.length) return dash(co); return mk2(co, true, hs.map((h) => h[1]).join(' + '), hs.reduce((a, h) => a + h[2], 0) + ' kecha'); };
+    const hotelCell = (co, city) => { const s = sv[co]; if (!s) return dash(co); const hs = (s.hot || []).filter((h) => h[0] === city); if (!hs.length) return dash(co); return mk2(co, true, hs.map((h) => h[1]).join(' + '), nightsTxt(hs.reduce((a, h) => a + (+h[2] || 0), 0))); };
     const mealCell = (co) => {
       const s = sv[co]; if (!s) return dash(co);
       if ('meal' in s) return s.meal ? mk2(co, true, s.meal + ' mahal', '') : mk2(co, null, '—', 'saytda ko\'rsatilmagan');
@@ -639,7 +656,7 @@ class Component extends DCLogic {
     svcRows.push({ label: 'Transfer', icon: IC.bus, cells: ['B', 'S', 'F'].map(xferCell) });
     const banner = 'position: relative; height: ' + (our && our.hq ? 170 : 120) + 'px; background: linear-gradient(180deg, rgba(5,13,10,' + (our && our.hq ? '.05' : '.35') + ') 25%, rgba(5,13,10,.94)), url(' + (our ? (our.hq || our.cover) : '') + ') center / cover no-repeat, linear-gradient(135deg, ' + (our ? TGRAD[our.tier] : '#0E2B27') + ')';
     const bannerName = our ? our.name : '';
-    const bannerLine = our ? our.tier + ' · ' + our.n + ' kecha · ' + (our.dep === 'thu' ? 'payshanba' : 'shanba') : '';
+    const bannerLine = our ? join([our.tier, nightsTxt(our.n), depName(our)]) : '';
 
     const tabs = [['p', 'Narxlar'], ['x', 'Xizmatlar']].map((t) => ({ label: t[1], click: () => this.setState({ tab: t[0] }), style: 'flex: 1; min-height: 42px; border-radius: 12px; border: 0; cursor: pointer; font-size: 14px; font-weight: 600; letter-spacing: .01em; transition: all .25s; background: ' + (tab === t[0] ? 'linear-gradient(180deg, #F1DDA6, #CFA24A)' : 'transparent') + '; color: ' + (tab === t[0] ? '#2A1D00' : '#B9C7BF') + '; box-shadow: none' }));
 
@@ -648,12 +665,12 @@ class Component extends DCLogic {
       const nm = cols[k].name;
       const ok = co === 'B' ? !!our : !!chosen[co];
       const hs = ((sv[co] && sv[co].hot) || []).filter((h) => h[0] !== 'Jidda').slice(0, 2);
-      const tl = ok ? [{ k: 'Jami', v: nightsOf(co) ? nightsOf(co) + ' kecha' : '—', sub: co === 'B' ? wd(date) + ' · ' + our.tier : (chosen[co].r.cat || '') }].concat(hs.map((h) => ({ k: h[0], v: h[1], sub: h[2] + ' kecha' }))) : [{ k: 'Paket', v: 'mos paket yo\'q', sub: '' }];
+      const tl = ok ? [{ k: 'Jami', v: nightsOf(co) ? nightsOf(co) + ' kecha' : '—', sub: co === 'B' ? join([wd(date), our.tier]) : (chosen[co].r.cat || '') }].concat(hs.map((h) => ({ k: h[0], v: h[1], sub: h[2] + ' kecha' }))) : [{ k: 'Paket', v: 'mos paket yo\'q', sub: '' }];
       const opts = co !== 'B' && cands[co].length > 1 ? cands[co].map((m, i) => { const on = i === pickIdx(co); return { label: m.r.pkg + ' · ' + short(m.d), price: priceOfM(m, px) ? fmt(priceOfM(m, px)) : '—', style: 'display: inline-flex; align-items: center; gap: 8px; padding: 6px 11px; border-radius: 999px; cursor: pointer; font-family: inherit; font-size: 12px; font-weight: 600; transition: all .2s; border: 1px solid ' + (on ? 'rgba(241,221,166,.9)' : 'rgba(255,255,255,.12)') + '; background: ' + (on ? 'linear-gradient(180deg, #F1DDA6, #CFA24A)' : 'rgba(255,255,255,.03)') + '; color: ' + (on ? '#2A1D00' : '#C9D6CE'), click: () => this.setState({ ['p' + co]: i }) }; }) : [];
       return { badge: badge(co, 22, RC[co]), letter: LET[co], tag: LN[co], name: nm, tl, opts };
     });
     const mini = miniRows;
-    const ourLine = our ? our.name + ' · ' + our.tier + ' · ' + our.n + ' kecha · ' + wd(date) + ' · ' + our.hotel : '';
+    const ourLine = our ? join([our.name, our.tier, nightsTxt(our.n), wd(date), our.hotel]) : '';
     return {
       asOfText: fresh.text, freshStyle: fresh.style, dotStyle: fresh.dot, cards, dts, groups, legend, axisNote, pickers, dateLong, ourLine, mini, lc,
       paxTabs, tiles, grid, svgWrap, lines, area, cursor, tip, tipRows, tipDate, dots, hits, xlab, rows, allLabel, px,
@@ -664,6 +681,6 @@ class Component extends DCLogic {
   }
 }
 </script>
-<script>if ('serviceWorker' in navigator && location.protocol.indexOf('http') === 0) { window.addEventListener('load', function () { navigator.serviceWorker.register('./sw.js').catch(function () {}); }); }</script>
+<script src="./sw-register.js"></script>
 </body>
 </html>

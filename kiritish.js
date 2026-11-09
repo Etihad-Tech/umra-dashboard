@@ -20,6 +20,10 @@
   };
   var TIERS = [['premium', 'Premium'], ['lux', 'Lux'], ['comfort', 'Komfort'], ['econom', 'Ekonom']];
   var DEVIATION = 0.3;   // ask for confirmation when a price differs from the current one by more than 30%
+  var TASHKENT_MS = 5 * 3600 * 1000;   // Asia/Tashkent is UTC+5 all year round
+
+  /** today's date in Tashkent as YYYY-MM-DD (the UTC date is still "yesterday" there until 05:00) */
+  function tashkentToday(ms) { return new Date(ms + TASHKENT_MS).toISOString().slice(0, 10); }
 
   // ------------------------------------------------------------------ pure helpers
   /** "1 190", "1190", "$1,190" -> 1190; '' -> null; anything else -> NaN. */
@@ -138,6 +142,7 @@
       var st = status();
       var sel = { co: '', pkg: '' };
       var rows = [];          // {dep, orig: {pax: price}, cells: {pax: input}, sold: checkbox}
+      var saving = false;     // true while an insert is on its way: no second submit
       var bulk = {};
 
       function remember() {
@@ -180,13 +185,13 @@
         var c = collect();
         count.textContent = c.bad ? MSG.badPrice : c.n ? c.n + " ta o'zgarish saqlanadi" : "O'zgarish yo'q";
         count.className = 'count' + (c.bad ? ' bad' : c.n ? ' has' : '');
-        btn.disabled = !c.n && !c.bad;
+        btn.disabled = saving || (!c.n && !c.bad);
         return c;
       }
 
       // ---- the table ----
       function renderTable(departures, prices) {
-        var today = new Date(now()).toISOString().slice(0, 10);
+        var today = tashkentToday(now());
         var upcoming = departures.filter(function (x) { return x.date >= today; });
         var byDep = {};
         prices.forEach(function (r) { (byDep[r.departure_id] = byDep[r.departure_id] || []).push(r); });
@@ -286,17 +291,21 @@
       ]);
       form.addEventListener('submit', function (ev) {
         ev.preventDefault();
+        if (saving) return;
         var c = refresh();
         if (c.bad) { say(st, MSG.badPrice, true); return; }
         if (!c.n) { say(st, MSG.needPrice, true); return; }
         if (c.far && !confirmFn(c.far + " ta narx hozirgisidan 30% dan ko'proq farq qiladi. Davom etamizmi?")) return;
+        var done = function () { saving = false; refresh(); };
+        saving = true;
         btn.disabled = true;
         q('manual_entries').insert(c.rows).then(function (r) {
-          if (r.error) { btn.disabled = false; say(st, errorText(r.error), true); return; }
-          say(st, MSG.saved + ' ' + c.n + " ta o'zgarish. Saytda bir necha daqiqada ko'rinadi.", false);
-          selectPackage(sel.pkg).then(function () { say(st, MSG.saved + ' ' + c.n + " ta o'zgarish. Saytda bir necha daqiqada ko'rinadi.", false); });
+          if (r.error) { done(); say(st, errorText(r.error), true); return; }
+          var ok = MSG.saved + ' ' + c.n + " ta o'zgarish. Saytda bir necha daqiqada ko'rinadi.";
+          say(st, ok, false);
           refreshList();
-        }).catch(function () { btn.disabled = false; say(st, MSG.failed, true); });
+          return selectPackage(sel.pkg).then(function () { done(); say(st, ok, false); }, done);
+        }).catch(function () { done(); say(st, MSG.failed, true); });
       });
       showCompanies();
       restore();
@@ -493,7 +502,8 @@
     return { start: start, refreshList: refreshList };
   }
 
-  var api = { create: create, MSG: MSG, parsePrice: parsePrice, buildEntryRows: buildEntryRows, bigDeviations: bigDeviations, errorText: errorText };
+  var api = { create: create, MSG: MSG, parsePrice: parsePrice, buildEntryRows: buildEntryRows, bigDeviations: bigDeviations, errorText: errorText,
+              tashkentToday: tashkentToday };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 
   if (typeof window !== 'undefined' && !window.__UMRA_KIRITISH_NO_AUTOSTART) {

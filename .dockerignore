@@ -1,8 +1,12 @@
 .git
 **/.env
-**/backup.env
+**/.env.*
+**/*.env
+!**/*.env.example
 **/node_modules
 **/.venv
 **/__pycache__
 _backup
+private
 deploy/backups
+deploy/deploy-history.log

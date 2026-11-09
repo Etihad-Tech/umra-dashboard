@@ -1,13 +1,16 @@
-// Oddiy offline-kesh: ilova fayllari keshlanadi, yangi versiya chiqsa VERSION ni o'zgartiring.
-const VERSION = 'umra-v6';
+// Oddiy offline-kesh: faqat ilova fayllari (app shell) keshlanadi. Yangi versiya chiqsa VERSION ni o'zgartiring.
+const VERSION = 'umra-v7';
 const CORE = [
   './', './index.html', './support.js', './manifest.webmanifest',
   './auth.js', './kiritish.html', './kiritish.js', './config.js', './vendor/supabase.js',
-  './live.js', './etihad-meta.js', './data/services.js',
+  './live.js', './etihad-meta.js', './sw-register.js',
   './icons/icon-192.png', './icons/icon-512.png'
 ];
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(VERSION).then((c) => c.addAll(CORE)).then(() => self.skipWaiting()));
+  // cache: 'reload' skips the browser's HTTP cache, so the precache never stores an older copy of a file
+  e.waitUntil(caches.open(VERSION)
+    .then((c) => c.addAll(CORE.map((u) => new Request(u, { cache: 'reload' }))))
+    .then(() => self.skipWaiting()));
 });
 self.addEventListener('activate', (e) => {
   e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== VERSION).map((k) => caches.delete(k)))).then(() => self.clients.claim()));
@@ -27,6 +30,6 @@ self.addEventListener('fetch', (e) => {
         caches.open(VERSION).then((c) => c.put(e.request, copy)).catch(() => {});
       }
       return r;
-    }).catch(() => caches.match(e.request).then((m) => m || (same ? caches.match('./index.html') : undefined)))
+    }).catch(() => caches.match(e.request).then((m) => m || (same ? caches.match('./index.html') : Response.error())))
   );
 });

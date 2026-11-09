@@ -4,6 +4,7 @@ services:
   collector:
     build: { context: .., dockerfile: deploy/collector.Dockerfile }
     restart: unless-stopped
+    init: true                             # PID 1 forwards SIGTERM, so "docker compose down" stops it cleanly
     env_file: ../collector/.env            # secrets live ONLY here, on the server (never in git, never in the image)
     read_only: true
     tmpfs: [/tmp]
@@ -12,6 +13,7 @@ services:
     mem_limit: 256m
     pids_limit: 100
     logging: { driver: json-file, options: { max-size: "10m", max-file: "5" } }
+    # no ports: the collector only makes outgoing requests
 
   web:
     build:
@@ -21,18 +23,27 @@ services:
         SUPABASE_URL: ${SUPABASE_URL:?set SUPABASE_URL in deploy/.env}
         SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY:?set the PUBLIC key in deploy/.env}
     restart: unless-stopped
+    user: "10002:10002"                    # "web" user created in web.Dockerfile; owns /data and /config
     environment:
       SITE_DOMAIN: ${SITE_DOMAIN:?set SITE_DOMAIN in deploy/.env}
-    ports: ["80:80", "443:443"]
+      SUPABASE_URL: ${SUPABASE_URL:?set SUPABASE_URL in deploy/.env}   # used in the CSP connect-src
+    ports: ["80:80", "443:443", "443:443/udp"]   # 443/udp = HTTP/3
     volumes: [caddy_data:/data, caddy_config:/config]
     read_only: true
     tmpfs: [/tmp]
-    cap_drop: [ALL]
-    cap_add: [NET_BIND_SERVICE]
+    cap_drop: [ALL]                        # no capability at all: low ports come from the sysctl below
+    sysctls: { net.ipv4.ip_unprivileged_port_start: 0 }
     security_opt: ["no-new-privileges:true"]
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:2019/config/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
     mem_limit: 128m
+    pids_limit: 100
     logging: { driver: json-file, options: { max-size: "10m", max-file: "5" } }
 
 volumes:
-  caddy_data:
+  caddy_data:      # TLS certificates and the ACME account: keep this volume (Let's Encrypt rate limits)
   caddy_config:

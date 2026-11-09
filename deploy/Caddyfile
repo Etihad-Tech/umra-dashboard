@@ -1,4 +1,10 @@
 # TLS certificates are requested and renewed automatically for {$SITE_DOMAIN}.
+# {$SITE_DOMAIN} and {$SUPABASE_URL} come from the container environment (docker-compose.yml <- deploy/.env).
+{
+	# admin API only inside the container (the healthcheck uses it); never published
+	admin 127.0.0.1:2019
+}
+
 {$SITE_DOMAIN} {
 	root * /srv
 	encode zstd gzip
@@ -8,17 +14,23 @@
 		X-Content-Type-Options "nosniff"
 		X-Frame-Options "DENY"
 		Referrer-Policy "no-referrer"
-		Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=()"
+		Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
 		Cross-Origin-Opener-Policy "same-origin"
-		# Report-Only first: the page runtime needs 'unsafe-eval' and inline styles. Watch the browser console,
-		# then rename to Content-Security-Policy to enforce.
-		Content-Security-Policy-Report-Only "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' https://*.supabase.co; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+		# ENFORCED. Why each source is needed:
+		#  script-src  'unsafe-eval'  the page runtime (support.js) compiles the page template with new Function
+		#              3 jsDelivr URLs: the exact React/ReactDOM/Babel files support.js loads (each with SRI)
+		#  style-src   'unsafe-inline' the page uses style attributes; Google Fonts CSS
+		#  connect-src the Supabase project only (no realtime/websocket is used) + Google Fonts for the service worker
+		#  img-src     data: for the 2FA QR code
+		Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-eval' https://cdn.jsdelivr.net/npm/react@18.3.1/umd/react.production.min.js https://cdn.jsdelivr.net/npm/react-dom@18.3.1/umd/react-dom.production.min.js https://cdn.jsdelivr.net/npm/@babel/standalone@7.29.0/babel.min.js; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' {$SUPABASE_URL} https://fonts.googleapis.com https://fonts.gstatic.com; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'"
 		-Server
 	}
 
-	# a new version must reach people quickly
-	@sw path /sw.js /index.html /live.js /kiritish.js /auth.js
-	header @sw Cache-Control "no-cache"
+	# A new version must reach people at once: every response is revalidated (ETag), except photos and icons.
+	@longlived path /images/* /icons/*
+	header @longlived Cache-Control "public, max-age=86400"
+	@fresh not path /images/* /icons/*
+	header @fresh Cache-Control "no-cache"
 
 	file_server
 }
