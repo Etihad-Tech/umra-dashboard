@@ -21,6 +21,8 @@ from .mandarin import Packet, ParseResult, SchemaError, parse_date, parse_price
 
 MAX_BYTES = 5 * 1024 * 1024
 _SUPABASE_URL = re.compile(r"https://[a-z0-9]{15,30}\.supabase\.co")
+# the page may point at a gateway on its OWN domain instead: var SUPABASE_URL = '/gw';
+_REL_URL = re.compile(r"""SUPABASE_URL\s*=\s*['"](/[A-Za-z0-9_\-]+(?:/[A-Za-z0-9_\-]+)*)['"]""")
 _JWT = re.compile(r"eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}")
 _SRC = re.compile(r"""<script[^>]+src=["']([^"']+)["']""", re.I)
 
@@ -34,13 +36,17 @@ def _jwt_role(token: str) -> str | None:
         return None
 
 
-def find_credentials(texts: list[str]) -> tuple[str, str]:
+def find_credentials(texts: list[str], site_origin: str | None = None) -> tuple[str, str]:
     """Find the Supabase URL and the PUBLIC anon key in page/script texts.
 
+    The URL is either a full https://<ref>.supabase.co address, or a relative path such as '/gw'
+    (a gateway on the site's own domain), which is resolved against `site_origin`.
     A key with any role other than 'anon' (e.g. a leaked service_role) is NEVER used.
     """
     joined = "\n".join(texts)
     urls = _SUPABASE_URL.findall(joined)
+    if not urls and site_origin:
+        urls = [site_origin.rstrip("/") + path for path in _REL_URL.findall(joined)]
     if not urls:
         raise SchemaError("supabase url not found on the page")
     keys = [k for k in dict.fromkeys(_JWT.findall(joined)) if _jwt_role(k) == "anon"]
@@ -56,6 +62,7 @@ def discover(site_url: str, session: requests.Session | None = None) -> tuple[st
     page.raise_for_status()
     texts = [page.text[:MAX_BYTES]]
     origin = re.match(r"https?://[^/]+", site_url).group(0)
+    final_origin = re.match(r"https?://[^/]+", getattr(page, "url", None) or site_url).group(0)
     for src in _SRC.findall(page.text)[:15]:
         if src.startswith("//"):
             src = "https:" + src
@@ -69,7 +76,7 @@ def discover(site_url: str, session: requests.Session | None = None) -> tuple[st
         if r.ok:
             texts.append(r.text[:MAX_BYTES])
     try:
-        return find_credentials(texts)
+        return find_credentials(texts, final_origin)
     except SchemaError:
         raise
     except Exception as e:  # noqa: BLE001

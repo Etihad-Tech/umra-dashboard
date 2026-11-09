@@ -100,12 +100,33 @@ begin
   select count(*) into n from public.profile_names;
   assert n = 3, format('active user sees names of the 3 active users, got %s', n);
   select display_name into v from public.profile_names where user_id = '00000000-0000-0000-0000-0000000000a1';
-  assert v = 'admin', format('display name falls back to the email prefix, got %s', v);
+  assert v = 'user-0000', format('empty full_name gives a neutral label, never the email, got %s', v);
   select count(*) into n from public.profile_names where user_id = '00000000-0000-0000-0000-0000000000f1';
   assert n = 0, 'a deactivated person is not listed';
 end
 $$;
 reset role;
+
+-- the table follows profiles: a name set by an admin shows up, deactivation removes it, reactivation brings it back
+do $$
+declare v text; n bigint;
+begin
+  assert not exists (select 1 from pg_views where schemaname = 'public' and viewname = 'profile_names'),
+    'profile_names must be a plain table, not a SECURITY DEFINER view';
+  assert not exists (select 1 from pg_depend d join pg_rewrite r on r.oid = d.objid
+                      where d.refobjid = 'auth.users'::regclass and r.ev_class = 'public.profile_names'::regclass),
+    'profile_names must not read auth.users';
+  update public.profiles set full_name = 'Aziz' where user_id = '00000000-0000-0000-0000-0000000000a1';
+  select display_name into v from public.profile_names where user_id = '00000000-0000-0000-0000-0000000000a1';
+  assert v = 'Aziz', format('renaming syncs, got %s', v);
+  update public.profiles set active = false where user_id = '00000000-0000-0000-0000-0000000000e1';
+  select count(*) into n from public.profile_names where user_id = '00000000-0000-0000-0000-0000000000e1';
+  assert n = 0, 'deactivation removes the name';
+  update public.profiles set active = true where user_id = '00000000-0000-0000-0000-0000000000e1';
+  select count(*) into n from public.profile_names where user_id = '00000000-0000-0000-0000-0000000000e1';
+  assert n = 1, 'reactivation restores the name';
+end
+$$;
 
 -- a deactivated user and anon see nothing
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000f1","role":"authenticated"}', true) \gset

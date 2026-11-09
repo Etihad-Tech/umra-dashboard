@@ -14,6 +14,7 @@
     badLogin: "Email yoki parol noto'g'ri.",
     inactive: "Hisobingiz faol emas. Administrator bilan bog'laning.",
     network: "Ulanishda xatolik. Internetni tekshirib, qayta urinib ko'ring.",
+    badKey: "Sozlama xatosi: config.js dagi kalit noto'g'ri (publishable/anon kalit kerak).",
     badCode: "Kod noto'g'ri. Qayta urinib ko'ring.",
     loading: 'Yuklanmoqda…'
   };
@@ -124,7 +125,10 @@
         client.auth.signInWithPassword({ email: email.value.trim(), password: pass.value }).then(function (res) {
           if (res.error) {
             // one message for "no such user" and "wrong password": do not reveal which emails exist
-            err.textContent = (res.error.status && res.error.status >= 500) ? MSG.network : MSG.badLogin;
+            var bad = res.error;
+            // an invalid API key is a setup problem (independent of the user), so it is safe to say so
+            var keyProblem = bad.status === 401 || /api key|apikey/i.test(bad.message || '');
+            err.textContent = keyProblem ? MSG.badKey : (bad.status && bad.status >= 500) ? MSG.network : MSG.badLogin;
             btn.disabled = false; pass.value = '';
             return;
           }
@@ -174,7 +178,10 @@
       }).then(function (r) {
         if (r.error || !r.data) { showLogin(MSG.network); return; }
         var d = r.data;
-        var qr = h('img', { 'class': 'qr', alt: 'QR kod', src: 'data:image/svg+xml;utf8,' + encodeURIComponent((d.totp && d.totp.qr_code) || '') });
+        var raw = (d.totp && d.totp.qr_code) || '';
+        // Supabase already returns a ready data: URI; older versions return bare <svg>. Only an <img> ever shows it (no scripts run).
+        var src = /^data:image\/svg\+xml/i.test(raw) ? raw : 'data:image/svg+xml;utf8,' + encodeURIComponent(raw);
+        var qr = h('img', { 'class': 'qr', alt: 'QR kod', src: src });
         var secret = h('code', { text: (d.totp && d.totp.secret) || '', id: 'umra-secret' });
         var form = codeForm(function (code) {
           return client.auth.mfa.challengeAndVerify({ factorId: d.id, code: code }).then(function (v) {
