@@ -3,7 +3,10 @@
  * - Without a valid session nothing but the login screen is shown.
  * - A deactivated account (profiles.active = false) is signed out. The real lock is Row Level Security in the
  *   database (every policy checks "active"); this only gives a clear message in the UI.
- * - An admin must have a TOTP factor. The database also ignores admin rights in a session without 2FA (migration 5).
+ * - An admin must have a TOTP factor. The database also ignores admin rights in a session without 2FA (migration 5),
+ *   and refuses to make anyone admin who has no verified factor (migration 10): other users can turn 2FA on from
+ *   the "2FA" button in the top bar first.
+ * - A failed profile lookup (network, server, token) shows "try again"; only a real inactive/missing profile signs out.
  * - "Chiqish" (log out) clears the session AND the service-worker caches.
  */
 (function () {
@@ -73,7 +76,8 @@
         '#umra-auth code{display:block;word-break:break-all;font-size:12px;background:#06120E;padding:8px;border-radius:8px;margin-top:8px;color:#D8B15E}' +
         '#umra-auth-bar{position:fixed;top:8px;right:8px;z-index:2147482000;display:flex;gap:8px;align-items:center;font:12px Inter,system-ui,sans-serif;' +
         'background:rgba(5,13,10,.85);border:1px solid rgba(255,255,255,.12);border-radius:999px;padding:5px 6px 5px 12px;color:#9DB8AE;backdrop-filter:blur(6px)}' +
-        '#umra-auth-bar button{border:0;border-radius:999px;background:#D8B15E;color:#0A1A15;font-weight:700;padding:5px 12px;cursor:pointer;font-size:12px}';
+        '#umra-auth-bar button{border:0;border-radius:999px;background:#D8B15E;color:#0A1A15;font-weight:700;padding:5px 12px;cursor:pointer;font-size:12px}' +
+        '#umra-auth-bar button.ghost{background:none;border:1px solid rgba(216,177,94,.55);color:#D8B15E}';
       (doc.head || doc.documentElement).appendChild(s);
     }
 
@@ -87,7 +91,8 @@
       (doc.body || doc.documentElement).appendChild(root);
       return root;
     }
-    function bar(email, role) {
+    // offer2fa: the user has no 2FA yet. Anyone may turn it on; it is REQUIRED before someone can be made admin.
+    function bar(email, role, offer2fa) {
       var old = doc.getElementById('umra-auth-bar');
       if (old) old.remove();
       var onEntry = /kiritish\.html$/.test((win.location && win.location.pathname) || '');
@@ -99,14 +104,25 @@
       var el = h('div', { id: 'umra-auth-bar' }, [
         nav,
         h('span', { text: email || '' }),
+        offer2fa
+          ? h('button', { type: 'button', id: 'umra-2fa', 'class': 'ghost', title: 'Ikki bosqichli himoyani yoqish', text: '2FA',
+                          on: { click: function () { showEnroll(true); } } })
+          : null,
         h('button', { type: 'button', id: 'umra-logout', text: 'Chiqish', on: { click: function () { logout(); } } })
       ]);
       (doc.body || doc.documentElement).appendChild(el);
     }
 
     // ---- screens ---------------------------------------------------------------------
-    function showMessage(text) {
-      screen('Umra narxlari', null, [h('p', { text: text, 'class': 'err', id: 'umra-msg' })]);
+    // retry: offer "try again" (and "log out") instead of leaving the person stuck on the message
+    function showMessage(text, retry) {
+      var kids = [h('p', { text: text, 'class': 'err', id: 'umra-msg' })];
+      if (retry) {
+        kids.push(h('button', { type: 'button', 'class': 'main', id: 'umra-retry', text: 'Qayta urinish',
+                                on: { click: function () { showMessage(MSG.loading); proceed(); } } }));
+        kids.push(logoutLink());
+      }
+      screen('Umra narxlari', null, kids);
     }
 
     function showLogin(note) {
@@ -169,14 +185,26 @@
       screen('Ikki bosqichli tasdiqlash', 'Google Authenticator yoki shunga o\'xshash ilovadagi kodni kiriting.', [form, logoutLink()]);
     }
 
-    function showEnroll() {
+    // optional = started by the person from the top bar (not an admin yet): cancel returns to the app, and after
+    // success the app simply continues (no second "umra:ready", the page is already loaded).
+    function showEnroll(optional) {
+      function back() { unlock(); if (info) bar(info.email, info.role, true); }
+      function cancelLink() {
+        return optional
+          ? h('button', { type: 'button', 'class': 'link', id: 'umra-cancel', text: 'Bekor qilish', on: { click: back } })
+          : logoutLink();
+      }
       return client.auth.mfa.listFactors().then(function (lf) {
         var stale = ((lf.data && lf.data.all) || []).filter(function (f) { return f.status === 'unverified'; });
         return Promise.all(stale.map(function (f) { return client.auth.mfa.unenroll({ factorId: f.id }); }));
       }).then(function () {
         return client.auth.mfa.enroll({ factorType: 'totp' });
       }).then(function (r) {
-        if (r.error || !r.data) { showLogin(MSG.network); return; }
+        if (r.error || !r.data) {
+          if (optional) screen('Ikki bosqichli himoya', null, [h('p', { text: MSG.network, 'class': 'err', id: 'umra-msg' }), cancelLink()]);
+          else showMessage(MSG.network, true);
+          return;
+        }
         var d = r.data;
         var raw = (d.totp && d.totp.qr_code) || '';
         // Supabase already returns a ready data: URI; older versions return bare <svg>. Only an <img> ever shows it (no scripts run).
@@ -186,12 +214,15 @@
         var form = codeForm(function (code) {
           return client.auth.mfa.challengeAndVerify({ factorId: d.id, code: code }).then(function (v) {
             if (v.error) return false;
+            if (optional) { unlock(); if (info) bar(info.email, info.role, false); return true; }
             return proceed().then(function () { return true; });
           });
         }, 'Ilovada paydo bo\'lgan 6 xonali kod');
-        screen('Ikki bosqichli himoyani yoqing',
-          'Administrator hisobi uchun majburiy. QR-kodni Google Authenticator (yoki shunga o\'xshash ilova)da skanerlang, so\'ng kodni kiriting.',
-          [qr, secret, form, logoutLink()]);
+        screen(optional ? 'Ikki bosqichli himoya' : 'Ikki bosqichli himoyani yoqing',
+          optional
+            ? 'Hisobingizni parol bilan birga telefondagi kod ham himoya qiladi (administrator bo\'lish uchun shart). QR-kodni Google Authenticator (yoki shunga o\'xshash ilova)da skanerlang, so\'ng kodni kiriting.'
+            : 'Administrator hisobi uchun majburiy. QR-kodni Google Authenticator (yoki shunga o\'xshash ilova)da skanerlang, so\'ng kodni kiriting.',
+          [qr, secret, form, cancelLink()]);
       });
     }
 
@@ -213,7 +244,9 @@
         var session = s.data && s.data.session;
         if (!session) { showLogin(); return; }
         return client.from('profiles').select('role,active').eq('user_id', session.user.id).maybeSingle().then(function (p) {
-          if (p.error && p.error.status && p.error.status >= 500) { showMessage(MSG.network); return; }
+          // Any failed lookup (no network, server error, expired token) is NOT "account inactive": keep the session,
+          // show the connection message with "try again". (A PostgrestError has no .status, so never rely on it.)
+          if (p.error) { showMessage(MSG.network, true); return; }
           var prof = p.data;
           if (!prof || !prof.active) {
             return client.auth.signOut().then(function () { return clearCaches(); }).then(function () { showLogin(MSG.inactive); });
@@ -228,7 +261,7 @@
             }
             if (prof.role === 'admin' && lvl.currentLevel !== 'aal2') return showEnroll();
             unlock();
-            bar(session.user.email, prof.role);
+            bar(session.user.email, prof.role, lvl.currentLevel !== 'aal2' && lvl.nextLevel !== 'aal2');
             info = { client: client, role: prof.role, userId: session.user.id, email: session.user.email };
             if (typeof win.dispatchEvent === 'function' && win.CustomEvent) win.dispatchEvent(new win.CustomEvent('umra:ready', { detail: info }));
             if (!timer) timer = win.setInterval(recheck, RECHECK_MS);

@@ -202,3 +202,71 @@ test('invalid API key is reported as a setup problem, not as a wrong password', 
   submit(doc, 'form'); await settle();
   assert.equal(text(doc, 'umra-err'), MSG.badKey);
 });
+
+// ---- review fixes: a failed profile lookup is not "inactive"; non-admins can turn on 2FA themselves ----------
+
+for (const [label, profileError] of [
+  ['network failure (no status at all)', { message: 'TypeError: Failed to fetch' }],
+  ['expired token (PostgREST error object, no .status)', { code: 'PGRST301', message: 'JWT expired' }],
+  ['server error', { status: 503, message: 'down' }],
+]) {
+  test(`profile lookup ${label}: connection message + retry, user is NOT signed out`, async () => {
+    const { doc, fake } = await boot({ session: SESSION, profile: { role: 'viewer', active: true }, profileError });
+    assert.ok(locked(doc));
+    assert.equal(text(doc, 'umra-msg'), MSG.network);
+    assert.notEqual(text(doc, 'umra-msg'), MSG.inactive);
+    assert.ok(!fake.calls.some((c) => c[0] === 'signOut'), 'a lookup error must never sign the user out');
+    assert.ok(doc.getElementById('umra-retry'), 'offers "try again"');
+    assert.ok(doc.getElementById('umra-cancel'), 'offers "log out"');
+  });
+}
+
+test('retry after the connection comes back opens the app', async () => {
+  const { doc, fake } = await boot({ session: SESSION, profile: { role: 'viewer', active: true },
+    profileError: { message: 'TypeError: Failed to fetch' } });
+  fake.opts.profileError = null;
+  doc.getElementById('umra-retry').click(); await settle();
+  assert.ok(!locked(doc));
+  assert.ok(!fake.calls.some((c) => c[0] === 'signOut'));
+});
+
+function bootWithEvents(opts) {
+  const doc = makeDom(), win = fakeWindow(), fake = fakeSupabase(opts);
+  const events = [];
+  win.dispatchEvent = (e) => events.push(e);
+  win.CustomEvent = class { constructor(type, init) { this.type = type; this.detail = init.detail; } };
+  const auth = create({ document: doc, window: win, supabase: fake.sdk, config: CONFIG });
+  return auth.start().then(settle).then(() => ({ doc, win, fake, auth, events }));
+}
+
+test('viewer without 2FA sees a "2FA" button; enrolling keeps the app loaded and removes the button', async () => {
+  const { doc, fake, events } = await bootWithEvents({ session: SESSION, profile: { role: 'viewer', active: true } });
+  assert.ok(!locked(doc));
+  doc.getElementById('umra-2fa').click(); await settle();
+  assert.ok(locked(doc), 'the enrol screen covers the app');
+  assert.ok(doc.getElementById('umra-secret'));
+  fill(doc, 'umra-code', '123456'); submit(doc, 'form'); await settle();
+  assert.ok(fake.calls.some((c) => c[0] === 'verify' && c[1] === 'f-new' && c[2] === '123456'));
+  assert.ok(!locked(doc), 'back in the app after a correct code');
+  assert.equal(doc.getElementById('umra-2fa'), null, 'no 2FA button once it is on');
+  assert.equal(events.length, 1, 'umra:ready fires only once (the page is not booted twice)');
+  assert.ok(!fake.calls.some((c) => c[0] === 'signOut'));
+});
+
+test('cancelling the optional 2FA setup returns to the app without signing out', async () => {
+  const { doc, fake } = await bootWithEvents({ session: SESSION, profile: { role: 'editor', active: true } });
+  doc.getElementById('umra-2fa').click(); await settle();
+  assert.ok(locked(doc));
+  doc.getElementById('umra-cancel').click(); await settle();
+  assert.ok(!locked(doc));
+  assert.ok(doc.getElementById('umra-2fa'), 'the button is still offered');
+  assert.ok(!fake.calls.some((c) => c[0] === 'signOut'));
+});
+
+test('a user who already has 2FA (or a pending challenge) is not offered the 2FA button', async () => {
+  const a = await boot({ session: SESSION, profile: { role: 'viewer', active: true }, levels: { currentLevel: 'aal2', nextLevel: 'aal2' } });
+  assert.ok(!locked(a.doc));
+  assert.equal(a.doc.getElementById('umra-2fa'), null);
+  const b = await boot({ session: SESSION, profile: { role: 'admin', active: true }, levels: { currentLevel: 'aal2', nextLevel: 'aal2' } });
+  assert.equal(b.doc.getElementById('umra-2fa'), null, 'an admin is always at aal2 inside the app');
+});
