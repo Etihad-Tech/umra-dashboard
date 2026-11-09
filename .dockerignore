@@ -1,0 +1,8 @@
+.git
+**/.env
+**/backup.env
+**/node_modules
+**/.venv
+**/__pycache__
+_backup
+deploy/backups

@@ -1,0 +1,38 @@
+# Run from this folder:   ./deploy.sh      (checks the settings, builds, starts)
+name: umra
+services:
+  collector:
+    build: { context: .., dockerfile: deploy/collector.Dockerfile }
+    restart: unless-stopped
+    env_file: ../collector/.env            # secrets live ONLY here, on the server (never in git, never in the image)
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 256m
+    pids_limit: 100
+    logging: { driver: json-file, options: { max-size: "10m", max-file: "5" } }
+
+  web:
+    build:
+      context: ..
+      dockerfile: deploy/web.Dockerfile
+      args:
+        SUPABASE_URL: ${SUPABASE_URL:?set SUPABASE_URL in deploy/.env}
+        SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY:?set the PUBLIC key in deploy/.env}
+    restart: unless-stopped
+    environment:
+      SITE_DOMAIN: ${SITE_DOMAIN:?set SITE_DOMAIN in deploy/.env}
+    ports: ["80:80", "443:443"]
+    volumes: [caddy_data:/data, caddy_config:/config]
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    cap_add: [NET_BIND_SERVICE]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 128m
+    logging: { driver: json-file, options: { max-size: "10m", max-file: "5" } }
+
+volumes:
+  caddy_data:
+  caddy_config:
