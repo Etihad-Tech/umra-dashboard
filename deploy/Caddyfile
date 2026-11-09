@@ -1,0 +1,24 @@
+# TLS certificates are requested and renewed automatically for {$SITE_DOMAIN}.
+{$SITE_DOMAIN} {
+	root * /srv
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "no-referrer"
+		Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=()"
+		Cross-Origin-Opener-Policy "same-origin"
+		# Report-Only first: the page runtime needs 'unsafe-eval' and inline styles. Watch the browser console,
+		# then rename to Content-Security-Policy to enforce.
+		Content-Security-Policy-Report-Only "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' https://*.supabase.co; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+		-Server
+	}
+
+	# a new version must reach people quickly
+	@sw path /sw.js /index.html /live.js /kiritish.js /auth.js
+	header @sw Cache-Control "no-cache"
+
+	file_server
+}

@@ -196,7 +196,8 @@ def main(argv=None) -> int:
     if not base or not key:
         return 2
     store = RestStore(base, key)
-    while True:
+
+    def cycle() -> None:
         for n in names:
             if n == "mandarin":
                 run_once(store, urls[n], args.city)
@@ -206,10 +207,25 @@ def main(argv=None) -> int:
                 run_etihad(store, urls[n], api_key)
         if args.notify:
             notify.run_from_env(store)
-        if not args.loop:
-            return 0
-        time.sleep(min(store.get_source(KINDS[n]).get("interval_min", 15) for n in names) * 60)
 
+    if not args.loop:
+        cycle()
+        return 0
+    return loop_forever(cycle, lambda: min(store.get_source(KINDS[n]).get("interval_min", 15) for n in names) * 60)
+
+
+def loop_forever(cycle, interval_seconds, sleep=time.sleep) -> int:
+    """Server mode: one broken cycle (database or network down) must never stop the collector."""
+    while True:
+        try:
+            cycle()
+        except Exception as e:  # noqa: BLE001  - log the type only, messages may contain URLs
+            log.error("cycle failed: %s", type(e).__name__)
+        try:
+            wait = interval_seconds()
+        except Exception:  # noqa: BLE001
+            wait = 15 * 60
+        sleep(max(60, min(wait, 24 * 3600)))
 
 if __name__ == "__main__":
     sys.exit(main())
