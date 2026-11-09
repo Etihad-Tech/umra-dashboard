@@ -5,16 +5,20 @@ Page: `kiritish.html` (editors and admins only; viewers see "no access"). Same l
 ## What an editor can do
 | Tab | Action | Table written |
 |---|---|---|
-| Narx | Enter prices for 1–4 pax and/or a sold-out flag for one departure. Valid 1–30 days (default 7). A price >30% away from the current one asks for confirmation. | `manual_entries` (insert) |
+| Narxlar | Edit prices for 1–4 pax and/or the sold-out flag of many dates in one table. Valid 7/14/30 days (default 7). | `manual_entries` (insert) |
 | Paket / sana | Add a new package with its first date, or a new date to an existing package. Rows are marked `is_manual = true`. | `packages`, `departures` (insert) |
 | Bog'lash | Link our package (ETIHAD) to a competitor package; "Uzish" sets `active = false` (nothing is deleted). | `package_matches` |
 | Yozuvlar | Active manual entries: who, when, valid until, conflict flag. "O'chirish" sets `cleared_at`. | `manual_entries` (update) |
 
-## Faster price entry (Phase 6)
-- The last company and package are remembered in the browser and opened again next time.
-- The nearest upcoming date that still has seats is chosen automatically.
-- Current prices appear as grey hints in the fields: type only what changed; an empty field means "unchanged".
-- "Barcha sanalarga qo'llash": one price goes to every date of the package (one confirmation, one insert).
+## Price table (Phase 6b, replaces the old price form)
+1. Tap a company, then a package (the last choice is remembered).
+2. Every upcoming date is a row; the cells already contain the CURRENT prices (green border = a manual price).
+3. Change what you need directly in the table. Changed cells turn gold; an empty cell or the same price means "unchanged".
+4. Tick "Tugagan" to mark a date sold out (untick to reopen it).
+5. The bar at the bottom says how many changes will be saved; pick how long the price is valid (7/14/30 days), press "Saqlash".
+
+"One price for all dates": type it above the table, press "Hammasiga qo'yish" — it only fills the cells (sold-out dates are skipped); nothing is saved until "Saqlash".
+A price more than 30% away from the current one asks for confirmation. Service worker is `umra-v6`.
 
 ## Rules enforced by the database (migration 6), not by the page
 - Editors can only INSERT manual rows (`is_manual = true`) and cannot edit or delete automatic ones.

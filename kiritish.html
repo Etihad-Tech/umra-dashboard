@@ -27,6 +27,44 @@
   .status{margin-top:12px;font-size:14px;min-height:18px}.ok{color:#7FE3B0}.bad{color:#FF8A80}
   .list{list-style:none;padding:0;margin:14px 0 0}.list li{padding:10px 0;border-top:1px solid rgba(255,255,255,.1);font-size:14px;line-height:1.4}
   .list li.conflict{color:#FFD27F}
+  .hint{font-size:14px;line-height:1.45;color:#9DB8AE;margin:0 0 14px;padding:10px 12px;border-left:3px solid #D8B15E;background:rgba(216,177,94,.07);border-radius:0 8px 8px 0}
+  .preview{min-height:20px;margin:0 0 12px;font-size:15px;font-weight:600;color:#D8B15E;line-height:1.4}
+  details.more{margin:0 0 14px;border:1px dashed rgba(255,255,255,.18);border-radius:10px;padding:10px 12px}
+  details.more summary{cursor:pointer;font-size:14px;color:#9DB8AE}
+  details.more[open] summary{margin-bottom:10px}
+  label{font-size:13px}
+  input,select{padding:13px}
+  button.main{padding:16px;font-size:17px}
+  .tabs button{padding:10px 16px;font-size:15px}
+  main{max-width:760px}
+  .step{font-size:13px;font-weight:700;color:#D8B15E;margin:14px 0 8px;text-transform:uppercase;letter-spacing:.04em}
+  .chips{display:flex;flex-wrap:wrap;gap:8px}
+  .chip{border:2px solid rgba(255,255,255,.16);background:#06120E;color:#EAF3EF;border-radius:12px;padding:12px 16px;font-size:16px;cursor:pointer;text-align:left}
+  .chip.on{border-color:#D8B15E;background:rgba(216,177,94,.16);color:#FFE9B0;font-weight:700}
+  .tablewrap{overflow-x:auto;border:1px solid rgba(255,255,255,.12);border-radius:12px}
+  table{border-collapse:collapse;width:100%;min-width:430px}
+  th{font-size:12px;color:#9DB8AE;font-weight:600;padding:8px 6px;text-align:center;background:#071510;position:sticky;top:0}
+  th:first-child,td.date{text-align:left;padding-left:10px}
+  td{padding:4px 3px;border-top:1px solid rgba(255,255,255,.08);text-align:center}
+  td.date{font-size:14px;white-space:nowrap}
+  td input[type=text]{width:100%;min-width:62px;padding:9px 4px;text-align:center;font-size:16px}
+  td input.manual{border-color:#7FE3B0}
+  td input.changed{border:2px solid #D8B15E;background:rgba(216,177,94,.18);color:#FFE9B0;font-weight:700}
+  td input.bad{border:2px solid #FF8A80}
+  td.soldcell input{width:22px;height:22px}
+  tr.edited td.date{color:#FFE9B0;font-weight:700}
+  .bulk{margin:0 0 12px;padding:10px;border:1px dashed rgba(255,255,255,.2);border-radius:12px}
+  .bulk-title{font-size:13px;color:#9DB8AE;margin-bottom:8px}
+  .bulk-in{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+  .bulk-in input{width:84px;padding:9px 6px;text-align:center}
+  .bulk-in button.small{margin-left:0;padding:10px 14px;font-size:14px}
+  .savebar{position:sticky;bottom:0;display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:14px;padding:12px;background:#0A1A15;border:1px solid rgba(216,177,94,.35);border-radius:12px}
+  .savebar .count{flex:1 1 180px;font-size:15px;color:#9DB8AE}
+  .savebar .count.has{color:#FFE9B0;font-weight:700}
+  .savebar .count.bad{color:#FF8A80}
+  .savebar .dayslabel{display:inline;margin:0;font-size:13px}
+  .savebar select{width:auto;padding:10px}
+  .savebar button.main{width:auto;min-width:140px}
 </style>
 </head>
 <body>

@@ -93,7 +93,7 @@
       var onEntry = /kiritish\.html$/.test((win.location && win.location.pathname) || '');
       var canEdit = role === 'editor' || role === 'admin';
       var nav = (canEdit || onEntry)
-        ? h('a', { id: 'umra-nav', href: onEntry ? './index.html' : './kiritish.html', text: onEntry ? 'Narxlar' : 'Kiritish',
+        ? h('a', { id: 'umra-nav', href: onEntry ? './index.html' : './kiritish.html', text: onEntry ? '← Narxlar jadvaliga' : "✎ Narxni o'zgartirish",
                    style: 'color:#D8B15E;text-decoration:none;font-weight:700' })
         : null;
       var el = h('div', { id: 'umra-auth-bar' }, [

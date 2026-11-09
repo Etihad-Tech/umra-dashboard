@@ -1,5 +1,5 @@
 // Oddiy offline-kesh: ilova fayllari keshlanadi, yangi versiya chiqsa VERSION ni o'zgartiring.
-const VERSION = 'umra-v5';
+const VERSION = 'umra-v6';
 const CORE = [
   './', './index.html', './support.js', './manifest.webmanifest',
   './auth.js', './kiritish.html', './kiritish.js', './config.js', './vendor/supabase.js',

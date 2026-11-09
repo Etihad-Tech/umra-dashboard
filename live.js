@@ -43,6 +43,30 @@
     }).filter(Boolean).join(' · ');
   }
 
+  /** Services table data from what the collector stored (Mandarin sends hotels, airline, routes, trains). Safo sends none -> null. */
+  var MEALS = { BB: 1, HB: 2, FB: 3, AI: 3 };
+  function cityName(c) {
+    c = String(c || '');
+    if (/makk?a/i.test(c)) return 'Makka';
+    if (/m[ae]din/i.test(c)) return 'Madina';
+    if (/jidd?a|jedd?a/i.test(c)) return 'Jidda';
+    return '';
+  }
+  function liveSvc(pk) {
+    var s = pk.services || {};
+    var hot = [];
+    (Array.isArray(pk.hotels) ? pk.hotels : []).forEach(function (h) {
+      if (!h || typeof h !== 'object') return;
+      var city = cityName(h.city), name = h.name || h.h || h.hotel;
+      if (city && name) hot.push([city, String(name), parseInt(h.nights || h.n, 10) || 0, MEALS[String(h.meal_type || '').toUpperCase()] || 0]);
+    });
+    var routes = [s.route_go, s.route_ret].filter(Boolean).join(' / ');
+    var air = [s.airline, routes].filter(Boolean).join(' · ');
+    var trains = Array.isArray(s.trains) ? s.trains.length : 0;
+    if (!hot.length && !air && !trains) return null;
+    return { air: air, hot: hot, train: trains ? 1 : 0, xfer: '' };
+  }
+
   /** Consecutive weekly departures with the same four prices become one band [from,to,p4,p3,p2,p1]. */
   function buildBands(rows) {
     var sorted = rows.slice().sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : 0; });
@@ -113,7 +137,7 @@
         });
         if (!Object.keys(d).length) return;
         allpk.push({ co: pk.company_id, pkg: pk.name || pk.external_key, key: pk.external_key,
-                     cat: pk.tier || null, n: nightsFrom(pk), hotel: hotelsText(pk.hotels), d: d });
+                     cat: pk.tier || null, n: nightsFrom(pk), hotel: hotelsText(pk.hotels), svc: liveSvc(pk), d: d });
       }
     });
     etihad.sort(function (a, b) { return a.id < b.id ? -1 : 1; });
@@ -161,7 +185,7 @@
   }
 
   var api = { buildModel: buildModel, buildBands: buildBands, tashkentToday: tashkentToday,
-              tashkentText: tashkentText, hotelsText: hotelsText, load: load, fetchAll: fetchAll };
+              tashkentText: tashkentText, hotelsText: hotelsText, liveSvc: liveSvc, load: load, fetchAll: fetchAll };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 
   if (typeof window !== 'undefined' && !window.__UMRA_LIVE_NO_AUTOSTART) {

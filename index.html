@@ -592,7 +592,17 @@ class Component extends DCLogic {
     const verdict = { eyebrow: vd.eyebrow, title: vd.title, sub: vd.sub, eyeStyle: 'color: ' + vd.c, dot: 'flex: none; width: 6px; align-self: stretch; border-radius: 6px; background: ' + vd.c + '; box-shadow: 0 0 16px ' + vd.c + '88', box: 'padding: 14px 16px; display: flex; gap: 14px; align-items: stretch' };
 
     // ---- xizmatlar jadvali ----
-    const svOf = (co) => co === 'B' ? (our ? SV.B[our.id] : null) : (chosen[co] ? (SV[co] || {})[chosen[co].r.pkg] : null);
+    // competitor services: what the collector stored (live) first, else the hand-written file by exact name, else by a similar name
+    const slug = (x) => String(x || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+    const staticSvc = (co, r) => {
+      const all = SV[co] || {};
+      if (all[r.pkg]) return all[r.pkg];
+      const want = [slug(r.pkg), slug(r.key)].filter(Boolean);
+      const hit = Object.keys(all).find((k) => want.indexOf(slug(k)) >= 0) ||
+        Object.keys(all).find((k) => want.some((w) => w.length > 5 && (slug(k).indexOf(w + '-') === 0 || w.indexOf(slug(k) + '-') === 0)));
+      return hit ? all[hit] : null;
+    };
+    const svOf = (co) => co === 'B' ? (our ? SV.B[our.id] : null) : (chosen[co] ? (chosen[co].r.svc || staticSvc(co, chosen[co].r)) : null);
     const sv = { B: svOf('B'), S: svOf('S'), F: svOf('F') };
     const cellBox = (co) => 'padding: 11px 6px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; text-align: center; border-left: 1px solid #E6DEC8; background: ' + (co === 'B' ? 'linear-gradient(180deg, #FCF2CB, #F8E7A9)' : 'transparent');
     const T1 = 'font-size: 12px; font-weight: 600; line-height: 1.25; color: #1D2C26';
