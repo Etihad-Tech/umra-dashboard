@@ -154,7 +154,9 @@ class Health(unittest.TestCase):
 
     def test_trailing_slash_in_the_url_is_ignored(self):
         env = {"SUPABASE_URL": "https://x.supabase.co/", "SUPABASE_SERVICE_ROLE_KEY": "K"}
-        resp = mock.Mock(**{"json.return_value": [self.row(5)], "raise_for_status.return_value": None})
+        # main() reads the real clock, so the row must be fresh against it (not against the fixed NOW)
+        fresh = dict(self.row(0), last_ok_at=datetime.now(timezone.utc).isoformat())
+        resp = mock.Mock(**{"json.return_value": [fresh], "raise_for_status.return_value": None})
         with mock.patch.dict("os.environ", env), mock.patch("requests.get", return_value=resp) as get:
             self.assertEqual(healthcheck.main(), 0)
         url = get.call_args.args[0]
