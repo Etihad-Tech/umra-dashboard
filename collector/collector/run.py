@@ -7,6 +7,7 @@ Competitor addresses are NOT kept in this public repository; set them in the env
     MANDARIN_URL   full URL of the Mandarin JSON feed
     SAFO_SITE_URL  address of the Safo public site
     HIKMAT_SITE_URL  address of the Hikmat Umra public site (optional: "all" skips Hikmat when it is not set)
+    UMRA_UZ_URL  address of umra.uz marketplace (optional: "all" skips when not set)
     ETIHAD_API_URL / ETIHAD_API_KEY  our partner API (the key is sent in the X-Api-Key header, never in the URL)
 """
 from __future__ import annotations
@@ -21,7 +22,7 @@ from datetime import date
 
 import requests
 
-from . import etihad, hikmat, notify, safo
+from . import etihad, hikmat, notify, safo, umra_uz
 from .db import RestStore
 from .mandarin import SchemaError, parse_feed
 from .sync import sync_packets
@@ -29,7 +30,7 @@ from .sync import sync_packets
 log = logging.getLogger("collector")
 
 MAX_BYTES = 20 * 1024 * 1024
-KINDS = {"mandarin": "mandarin_json", "safo": "safo_supabase", "etihad": "etihad_showroom", "hikmat": "hikmat_html"}
+KINDS = {"mandarin": "mandarin_json", "safo": "safo_supabase", "etihad": "etihad_showroom", "hikmat": "hikmat_html", "umra_uz_etihad": "umra_uz_etihad", "umra_uz_safo": "umra_uz_safo"}
 
 
 # ------------------------------------------------------------------ fetching
@@ -74,6 +75,19 @@ def fetch_hikmat_pages(site_url: str) -> tuple[str, str]:
             last = e
             time.sleep(2 ** attempt)
     raise RuntimeError(f"cannot fetch hikmat pages: {type(last).__name__}")
+
+
+def fetch_umra_uz_pages(site_url: str) -> tuple[str, str]:
+    last: Exception | None = None
+    for attempt in range(3):
+        try:
+            return umra_uz.fetch_pages(site_url)
+        except SchemaError:
+            raise          # 403/429 → stop immediately, do not retry
+        except (requests.RequestException, ValueError) as e:
+            last = e
+            time.sleep(2 ** attempt)
+    raise RuntimeError(f"cannot fetch umra_uz pages: {type(last).__name__}")
 
 
 # --------------------------------------------------------------------- runs
@@ -142,6 +156,20 @@ def run_etihad(store, url: str, api_key: str) -> None:
     _execute(store, KINDS["etihad"], produce)
 
 
+def run_umra_uz_etihad(store, site_url: str) -> None:
+    def produce(_source):
+        etihad_html, _safo_html = fetch_umra_uz_pages(site_url)
+        return umra_uz.parse_page(etihad_html, "etihad"), None
+    _execute(store, KINDS["umra_uz_etihad"], produce)
+
+
+def run_umra_uz_safo(store, site_url: str) -> None:
+    def produce(_source):
+        _etihad_html, safo_html = fetch_umra_uz_pages(site_url)
+        return umra_uz.parse_page(safo_html, "safar travel"), None
+    _execute(store, KINDS["umra_uz_safo"], produce)
+
+
 # ------------------------------------------------------------------ dry runs
 def _summary(parsed) -> None:
     print(f"items: {parsed.total} | usable: {len(parsed.packets)} | invalid: {parsed.invalid} | "
@@ -173,6 +201,14 @@ def dry_run_etihad(url: str, api_key: str) -> None:
     _summary(etihad.parse_packages(fetch_feed(url, headers={"X-Api-Key": api_key})))
 
 
+def dry_run_umra_uz(site_url: str) -> None:
+    etihad_html, safo_html = fetch_umra_uz_pages(site_url)
+    print("== umra_uz / etihad")
+    _summary(umra_uz.parse_page(etihad_html, "etihad"))
+    print("== umra_uz / safar travel")
+    _summary(umra_uz.parse_page(safo_html, "safar travel"))
+
+
 def _need_env(name: str) -> str | None:
     value = os.environ.get(name)
     if not value:
@@ -182,7 +218,7 @@ def _need_env(name: str) -> str | None:
 
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--source", choices=["mandarin", "safo", "etihad", "hikmat", "all"], default="mandarin")
+    ap.add_argument("--source", choices=["mandarin", "safo", "etihad", "hikmat", "umra_uz_etihad", "umra_uz_safo", "all"], default="mandarin")
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--loop", action="store_true")
     ap.add_argument("--notify", action="store_true", help="after each run, send new events to Telegram")
@@ -195,11 +231,16 @@ def main(argv=None) -> int:
             names.append("hikmat")
         else:
             log.warning("HIKMAT_SITE_URL is not set: Hikmat is skipped")
+        if os.environ.get("UMRA_UZ_URL"):
+            names.append("umra_uz_etihad")
+            names.append("umra_uz_safo")
+        else:
+            log.warning("UMRA_UZ_URL is not set: umra.uz is skipped")
 
     urls = {}
     for n in names:
         urls[n] = _need_env({"mandarin": "MANDARIN_URL", "safo": "SAFO_SITE_URL", "etihad": "ETIHAD_API_URL",
-                                "hikmat": "HIKMAT_SITE_URL"}[n])
+                                "hikmat": "HIKMAT_SITE_URL", "umra_uz_etihad": "UMRA_UZ_URL", "umra_uz_safo": "UMRA_UZ_URL"}[n])
         if not urls[n]:
             return 2
 
@@ -219,6 +260,8 @@ def main(argv=None) -> int:
                     dry_run_safo(urls[n])
                 elif n == "hikmat":
                     dry_run_hikmat(urls[n])
+                elif n in ("umra_uz_etihad", "umra_uz_safo"):
+                    dry_run_umra_uz(urls[n])
                 else:
                     dry_run_etihad(urls[n], api_key)
             except Exception as e:  # noqa: BLE001
@@ -239,6 +282,10 @@ def main(argv=None) -> int:
                 run_safo(store, urls[n])
             elif n == "hikmat":
                 run_hikmat(store, urls[n])
+            elif n == "umra_uz_etihad":
+                run_umra_uz_etihad(store, urls[n])
+            elif n == "umra_uz_safo":
+                run_umra_uz_safo(store, urls[n])
             else:
                 run_etihad(store, urls[n], api_key)
         if args.notify:
