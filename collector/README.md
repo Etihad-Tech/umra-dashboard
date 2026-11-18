@@ -1,7 +1,7 @@
 # Collectors (Phase 3) and Telegram alerts (Phase 4)
 
 Pull competitor prices and store them in Supabase. The ETIHAD collector comes next.
-Competitor addresses are not in this public repo: set `MANDARIN_URL` and `SAFO_SITE_URL` in the environment.
+Competitor addresses are not in this public repo: set `MANDARIN_URL`, `SAFO_SITE_URL` and `HIKMAT_SITE_URL` in the environment.
 
 ## Sources
 - **Mandarin** (`--source mandarin`): JSON feed. Departure city = `sources.config.departure_city` (default `TOSHKENT`).

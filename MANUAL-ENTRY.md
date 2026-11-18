@@ -36,3 +36,8 @@ the badge «qo'lda kiritilgan». Service worker is `umra-v7`.
 1. Review and apply `supabase/migrations/20261108000006_manual_packages.sql` in the Supabase SQL Editor.
 2. Publish the site (`DEPLOY.md`, "Update"). Every page file is revalidated on load and the service worker is `umra-v7`, so browsers pick up the new page.
 3. Give people the `editor` role (see `supabase/AUTH.md`).
+
+
+## Hikmat Umra
+Hikmat appears in the company list like the others. Its automatic price is only "from X $" for 4 people, so please enter the real
+prices (1 to 4 people, per date) here when you know them; the manual price replaces the automatic one on the dashboard.
