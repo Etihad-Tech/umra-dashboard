@@ -17,6 +17,8 @@ SQL migrations, Row Level Security and tests. No secrets live here. Account setu
       start inactive, anonymous sessions get nothing, admin only with a verified 2FA factor, audit of SQL-editor
       changes (`audit_log.db_role`), future tables closed to `anon` / `authenticated` by default
   11. `…_rls_initplan.sql` — the same policies, evaluated once per query instead of once per row
+  12. `…_services_read_policy.sql` — read access to the services settings row
+  13. `…_hikmat.sql` — fourth competitor (company `H`). The source starts disabled; enable it when `HIKMAT_SITE_URL` is set
 - `tests/` — SQL tests; `run_tests.sh` applies all migrations to an empty database, then runs them.
 
 ## Roles

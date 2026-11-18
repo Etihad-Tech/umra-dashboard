@@ -20,3 +20,4 @@ deploy/deploy-history.log
 
 # Business data that must not be public (imported into Supabase with collector.import_services)
 private/
+collector/samples/

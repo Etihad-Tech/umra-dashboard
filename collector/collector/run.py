@@ -1,4 +1,4 @@
-"""Entry point:  python -m collector.run [--source mandarin|safo|etihad|all] [--dry-run] [--loop]
+"""Entry point:  python -m collector.run [--source mandarin|safo|etihad|hikmat|all] [--dry-run] [--loop]
 
 --dry-run   fetch + parse and print a summary. No database, no Supabase key needed.
 --loop      repeat forever every sources.interval_min minutes (a server may use cron instead).
@@ -6,6 +6,7 @@
 Competitor addresses are NOT kept in this public repository; set them in the environment:
     MANDARIN_URL   full URL of the Mandarin JSON feed
     SAFO_SITE_URL  address of the Safo public site
+    HIKMAT_SITE_URL  address of the Hikmat Umra public site (optional: "all" skips Hikmat when it is not set)
     ETIHAD_API_URL / ETIHAD_API_KEY  our partner API (the key is sent in the X-Api-Key header, never in the URL)
 """
 from __future__ import annotations
@@ -21,7 +22,7 @@ from datetime import date
 
 import requests
 
-from . import etihad, notify, safo
+from . import etihad, hikmat, notify, safo
 from .clock import today_tashkent
 from .db import RestStore
 from .mandarin import SchemaError, parse_feed
@@ -30,7 +31,7 @@ from .sync import sync_packets
 log = logging.getLogger("collector")
 
 MAX_BYTES = 20 * 1024 * 1024
-KINDS = {"mandarin": "mandarin_json", "safo": "safo_supabase", "etihad": "etihad_showroom"}
+KINDS = {"mandarin": "mandarin_json", "safo": "safo_supabase", "etihad": "etihad_showroom", "hikmat": "hikmat_html"}
 
 
 # ------------------------------------------------------------------ fetching
@@ -62,6 +63,19 @@ def fetch_safo_rows(site_url: str) -> list:
             last = e
             time.sleep(2 ** attempt)
     raise RuntimeError(f"cannot fetch safo data: {type(last).__name__}")
+
+
+def fetch_hikmat_pages(site_url: str) -> tuple[str, str]:
+    last: Exception | None = None
+    for attempt in range(3):
+        try:
+            return hikmat.fetch_pages(site_url)
+        except SchemaError:
+            raise
+        except (requests.RequestException, ValueError) as e:
+            last = e
+            time.sleep(2 ** attempt)
+    raise RuntimeError(f"cannot fetch hikmat pages: {type(last).__name__}")
 
 
 # --------------------------------------------------------------------- runs
@@ -120,6 +134,15 @@ def run_safo(store, site_url: str, today: date | None = None) -> None:
     _execute(store, KINDS["safo"], produce, day)
 
 
+def run_hikmat(store, site_url: str, today: date | None = None) -> None:
+    day = today or today_tashkent()          # Asia/Tashkent date, same as Safo (the server runs in UTC)
+
+    def produce(_source):
+        prices_html, dates_html = fetch_hikmat_pages(site_url)
+        return hikmat.parse_pages(prices_html, dates_html, day), None
+    _execute(store, KINDS["hikmat"], produce, day)
+
+
 def run_etihad(store, url: str, api_key: str, today: date | None = None) -> None:
     def produce(_source):
         return etihad.parse_packages(fetch_feed(url, headers={"X-Api-Key": api_key})), None
@@ -133,7 +156,8 @@ def run_cycle(store, names: list[str], urls: dict, api_key: str | None = None, c
     can contain URLs)."""
     runners = {"mandarin": lambda: run_once(store, urls["mandarin"], city),
                "safo": lambda: run_safo(store, urls["safo"]),
-               "etihad": lambda: run_etihad(store, urls["etihad"], api_key)}
+               "etihad": lambda: run_etihad(store, urls["etihad"], api_key),
+               "hikmat": lambda: run_hikmat(store, urls["hikmat"])}
     for n in names:
         try:
             runners[n]()
@@ -168,6 +192,11 @@ def dry_run_safo(site_url: str) -> None:
     _summary(safo.parse_rows(rows, today_tashkent()))
 
 
+def dry_run_hikmat(site_url: str) -> None:
+    prices_html, dates_html = fetch_hikmat_pages(site_url)
+    _summary(hikmat.parse_pages(prices_html, dates_html, today_tashkent()))
+
+
 def dry_run_etihad(url: str, api_key: str) -> None:
     _summary(etihad.parse_packages(fetch_feed(url, headers={"X-Api-Key": api_key})))
 
@@ -181,7 +210,7 @@ def _need_env(name: str) -> str | None:
 
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--source", choices=["mandarin", "safo", "etihad", "all"], default="mandarin")
+    ap.add_argument("--source", choices=["mandarin", "safo", "etihad", "hikmat", "all"], default="mandarin")
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--loop", action="store_true")
     ap.add_argument("--notify", action="store_true", help="after each run, send new events to Telegram")
@@ -189,10 +218,16 @@ def main(argv=None) -> int:
     args = ap.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     names = ["mandarin", "safo", "etihad"] if args.source == "all" else [args.source]
+    if args.source == "all":
+        if os.environ.get("HIKMAT_SITE_URL"):
+            names.append("hikmat")
+        else:
+            log.warning("HIKMAT_SITE_URL is not set: Hikmat is skipped")
 
     urls = {}
     for n in names:
-        urls[n] = _need_env({"mandarin": "MANDARIN_URL", "safo": "SAFO_SITE_URL", "etihad": "ETIHAD_API_URL"}[n])
+        urls[n] = _need_env({"mandarin": "MANDARIN_URL", "safo": "SAFO_SITE_URL", "etihad": "ETIHAD_API_URL",
+                                "hikmat": "HIKMAT_SITE_URL"}[n])
         if not urls[n]:
             return 2
 
@@ -210,6 +245,8 @@ def main(argv=None) -> int:
                     dry_run_mandarin(urls[n], args.city or "TOSHKENT")
                 elif n == "safo":
                     dry_run_safo(urls[n])
+                elif n == "hikmat":
+                    dry_run_hikmat(urls[n])
                 else:
                     dry_run_etihad(urls[n], api_key)
             except Exception as e:  # noqa: BLE001

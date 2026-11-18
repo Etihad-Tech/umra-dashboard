@@ -28,7 +28,7 @@ the real site name.
 - A Supabase project with every file in `supabase/migrations/` applied in order (see `supabase/README.md`), plus:
   - the publishable key, the secret key and the database password;
   - the ETIHAD API URL and key;
-  - the competitor URLs;
+  - the competitor URLs (`MANDARIN_URL`, `SAFO_SITE_URL`, and optionally `HIKMAT_SITE_URL`: without it Hikmat is skipped);
   - a Telegram bot token.
 
 ## 1. Get the code onto the server (read-only deploy key)
