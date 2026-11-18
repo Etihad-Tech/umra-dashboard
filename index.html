@@ -62,6 +62,8 @@ button:focus-visible{outline:2px solid #D8B15E;outline-offset:2px}
 .mcards{gap:4px}
 }
 .mchips button{max-width:100%}
+.tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+@media (max-width:560px){.tiles{grid-template-columns:repeat(2,1fr)}}
 .mrow{display:grid;grid-template-columns:60px minmax(0,1fr);column-gap:7px;align-items:center}
 .mtag{display:flex;align-items:center;justify-content:center;text-align:center;font-size:10.5px;font-weight:700;letter-spacing:.03em}
 .mcards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px}
@@ -173,7 +175,7 @@ button:focus-visible{outline:2px solid #D8B15E;outline-offset:2px}
 </sc-for>
 </div>
 </div>
-<div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px">
+<div class="tiles">
 <sc-for list="{{tiles}}" as="l" hint-placeholder-count="3">
 <div style="{{l.box}}">
 <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 6px; flex-wrap: wrap"><span style="font-size: 10.5px; font-weight: 700; letter-spacing: .06em; color: var(--tx2)">{{l.tag}}</span><span class="num serif" style="font-weight: 600; font-size: 18px; letter-spacing: -.01em">{{l.value}}</span></div>
@@ -192,6 +194,7 @@ button:focus-visible{outline:2px solid #D8B15E;outline-offset:2px}
 <linearGradient id="ga" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="{{lc.B}}" stop-opacity=".16"></stop><stop offset="1" stop-color="{{lc.B}}" stop-opacity="0"></stop></linearGradient>
 </defs>
 <path d="{{area}}" fill="url(#ga)" stroke="none"></path>
+<path d="{{lines.H}}" fill="none" stroke="{{lc.H}}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"></path>
 <path d="{{lines.F}}" fill="none" stroke="{{lc.F}}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"></path>
 <path d="{{lines.S}}" fill="none" stroke="{{lc.S}}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"></path>
 <path d="{{lines.B}}" fill="none" stroke="{{lc.B}}" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"></path>
@@ -266,11 +269,12 @@ button:focus-visible{outline:2px solid #D8B15E;outline-offset:2px}
 <span class="serif" style="font-weight: 600; font-size: 22px; letter-spacing: -.01em">Sanalar bo'yicha narx</span>
 </div>
 <div style="border-radius: 16px; overflow: hidden; border: 1px solid var(--l1); background: var(--w1)">
-<div style="display: grid; grid-template-columns: minmax(0,1.3fr) minmax(0,1fr) minmax(0,1fr) minmax(0,1fr); align-items: center; background: var(--f1); font-weight: 600; font-size: 10.5px; letter-spacing: .08em; color: var(--tx2)">
+<div style="display: grid; grid-template-columns: minmax(0,1.2fr) repeat(4, minmax(0,1fr)); align-items: center; background: var(--f1); font-weight: 600; font-size: 10.5px; letter-spacing: .08em; color: var(--tx2)">
 <div style="padding: 11px 8px">SANA</div>
 <div style="padding: 11px 2px; text-align: center; color: var(--gold-tx); background: rgba(227,189,98,.12)">ETIHAD</div>
 <div style="padding: 11px 2px; text-align: center">SAFO</div>
 <div style="padding: 11px 2px; text-align: center">MANDARIN</div>
+<div style="padding: 11px 2px; text-align: center">HIKMAT</div>
 </div>
 <sc-for list="{{rows}}" as="r" hint-placeholder-count="4">
 <button class="row" onClick="{{r.click}}" style="{{r.rowStyle}}">
@@ -278,6 +282,7 @@ button:focus-visible{outline:2px solid #D8B15E;outline-offset:2px}
 <div class="num" style="{{r.cB}}">{{r.b}}</div>
 <div class="num" style="{{r.cS}}">{{r.s}}</div>
 <div class="num" style="{{r.cF}}">{{r.f}}</div>
+<div class="num" style="{{r.cH}}">{{r.h}}</div>
 </button>
 </sc-for>
 </div>
@@ -302,14 +307,15 @@ button:focus-visible{outline:2px solid #D8B15E;outline-offset:2px}
 <span style="font-size: 11.5px; color: var(--tx2); margin-top: 3px">Paket tarkibidagi asosiy xizmatlar farqi</span>
 </div>
 </div>
-<div style="display: grid; grid-template-columns: minmax(0,1.15fr) minmax(0,1.05fr) minmax(0,1fr) minmax(0,1fr); align-items: stretch; background: linear-gradient(90deg, #0E5A44, #0A3F31); color: #F6F1E4; font-weight: 700; font-size: 11.5px; letter-spacing: .05em; border-top: 1px solid var(--l2)">
+<div style="display: grid; grid-template-columns: minmax(0,1.1fr) repeat(4, minmax(0,1fr)); align-items: stretch; background: linear-gradient(90deg, #0E5A44, #0A3F31); color: #F6F1E4; font-weight: 700; font-size: 11.5px; letter-spacing: .05em; border-top: 1px solid var(--l2)">
 <div style="padding: 11px 12px; display: flex; align-items: center; color: var(--tx2); font-weight: 600">Xizmatlar</div>
 <div style="padding: 11px 4px; text-align: center; color: #5B4300; background: linear-gradient(180deg, #F7E3A2, #EBC964); display: flex; align-items: center; justify-content: center; box-shadow: inset 0 0 0 1.5px #D8B15E">ETIHAD</div>
 <div style="padding: 11px 4px; text-align: center; color: #5B4300; background: linear-gradient(180deg, #F7E3A2, #EBC964); display: flex; align-items: center; justify-content: center; box-shadow: inset 0 0 0 1.5px #D8B15E">SAFO</div>
 <div style="padding: 11px 4px; text-align: center; color: #5B4300; background: linear-gradient(180deg, #F7E3A2, #EBC964); display: flex; align-items: center; justify-content: center; box-shadow: inset 0 0 0 1.5px #D8B15E">MANDARIN</div>
+<div style="padding: 11px 4px; text-align: center; color: #5B4300; background: linear-gradient(180deg, #F7E3A2, #EBC964); display: flex; align-items: center; justify-content: center; box-shadow: inset 0 0 0 1.5px #D8B15E">HIKMAT</div>
 </div>
 <sc-for list="{{svcRows}}" as="r" hint-placeholder-count="5">
-<div style="display: grid; grid-template-columns: minmax(0,1.15fr) minmax(0,1.05fr) minmax(0,1fr) minmax(0,1fr); align-items: stretch; border-top: 1px solid #E6DEC8">
+<div style="display: grid; grid-template-columns: minmax(0,1.1fr) repeat(4, minmax(0,1fr)); align-items: stretch; border-top: 1px solid #E6DEC8">
 <div style="padding: 12px 4px 12px 9px; min-width: 0; display: flex; align-items: center; gap: 6px; font-size: 11.5px; word-break: break-word; font-weight: 600; color: #1D2C26">
 <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#0E5A44" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex: none"><path d="{{r.icon}}"></path></svg>
 <span>{{r.label}}</span>
@@ -352,10 +358,11 @@ class Component extends DCLogic {
     const MS = ['yan', 'fev', 'mar', 'apr', 'may', 'iyn', 'iyl', 'avg', 'sen', 'okt', 'noy', 'dek'];
     const wd = (d) => WD[new Date(dms(d) * 864e5).getUTCDay()];
     const ws = (d) => WS[new Date(dms(d) * 864e5).getUTCDay()];
-    const LN = { B: 'ETIHAD', S: 'SAFO', F: 'MANDARIN' };
-    const LET = { B: 'E', S: 'S', F: 'M' };
-    const LC = { B: '#E3BD62', S: '#F08A5D', F: '#5AA9F0' };
-    const LG = { B: '#F4E2AE, #C99A3C', S: '#FFB591, #DE5B2E', F: '#92C8F7, #2F78D0' };
+    const LN = { B: 'ETIHAD', S: 'SAFO', F: 'MANDARIN', H: 'HIKMAT' };
+    const CO = ['B', 'S', 'F', 'H'], RIV = ['S', 'F', 'H'];   // all companies / competitors
+    const LET = { B: 'E', S: 'S', F: 'M', H: 'H' };
+    const LC = { B: '#E3BD62', S: '#F08A5D', F: '#5AA9F0', H: '#B48CE8' };
+    const LG = { B: '#F4E2AE, #C99A3C', S: '#FFB591, #DE5B2E', F: '#92C8F7, #2F78D0', H: '#D9C2F7, #7A4FC4' };
     const GROUP = { Premium: ['premium'], Lux: ['lux'], Comfort: ['comfort', 'econom'] };   // tiers from the database (category_map)
     const TGRAD = { Premium: '#3A1F52, #7A3FA0', Lux: '#4A3408, #B07A12', Comfort: '#14304F, #2F6FB0' };
     const TCOL = { Premium: '#8A4CB8', Lux: '#C48A16', Comfort: '#3A82D0' };
@@ -435,9 +442,11 @@ class Component extends DCLogic {
     });
 
     const candsFor = (co, d) => genC(our, co, d);
-    const cands = { S: date ? candsFor('S', date).slice(0, 2) : [], F: date ? candsFor('F', date).slice(0, 2) : [] };
+    const cands = {};
+    RIV.forEach((c) => { cands[c] = date ? candsFor(c, date).slice(0, 2) : []; });
     const pickIdx = (co) => Math.min(Math.max(+(S['p' + co] || 0), 0), Math.max(cands[co].length - 1, 0));
-    const chosen = { S: cands.S[pickIdx('S')] || null, F: cands.F[pickIdx('F')] || null };
+    const chosen = {};
+    RIV.forEach((c) => { chosen[c] = cands[c][pickIdx(c)] || null; });
     const priceOfM = (m, x) => (m ? m.r.d[m.d][4 - x] || null : null);
     const forDate = (co, d) => { const l = candsFor(co, d); const pref = chosen[co]; return (pref && l.find((m) => m.r.pkg === pref.r.pkg)) || l[0] || null; };
 
@@ -445,7 +454,8 @@ class Component extends DCLogic {
     const cols = [
       { co: 'B', name: our ? our.name : '', get: (x) => (ourPrice && ourPrice[x]) || null },
       { co: 'S', name: chosen.S ? chosen.S.r.pkg + ' (' + short(chosen.S.d) + ')' : 'mos paket yo\'q', get: (x) => priceOfM(chosen.S, x) },
-      { co: 'F', name: chosen.F ? chosen.F.r.pkg + ' (' + short(chosen.F.d) + ')' : 'mos paket yo\'q', get: (x) => priceOfM(chosen.F, x) }
+      { co: 'F', name: chosen.F ? chosen.F.r.pkg + ' (' + short(chosen.F.d) + ')' : 'mos paket yo\'q', get: (x) => priceOfM(chosen.F, x) },
+      { co: 'H', name: chosen.H ? chosen.H.r.pkg + ' (' + short(chosen.H.d) + ')' : 'mos paket yo\'q', get: (x) => priceOfM(chosen.H, x) }
     ];
     const all = [];
     [1, 2, 3, 4].forEach((x) => cols.forEach((c) => { const p = c.get(x); if (p) all.push(p); }));
@@ -469,7 +479,7 @@ class Component extends DCLogic {
       return {
         title: x + ' kishi', click: () => this.setState({ px: x }),
         box: 'display: flex; flex-direction: column; gap: 8px; min-width: 0; padding: 12px 5px 10px; cursor: pointer; transition: background .25s; border-left: 1px solid var(--f1); background: ' + (x === px ? 'rgba(241,221,166,.07)' : 'transparent') + '; box-shadow: ' + (x === px ? 'inset 0 -2px 0 #E3BD62' : 'none'),
-        diffs: [['S', 1], ['F', 2]].filter((z) => ps[z[1]] && myP).map((z) => { const df = ps[z[1]] - myP; return { text: LN[z[0]] + ' ' + (df === 0 ? '=' : (df > 0 ? '+' : '−') + '$' + Math.abs(df)), style: 'font-size: 9.5px; font-weight: 600; letter-spacing: .01em; color: ' + (df === 0 ? 'var(--tx2)' : df > 0 ? 'var(--up)' : 'var(--down)') }; }),
+        diffs: [['S', 1], ['F', 2], ['H', 3]].filter((z) => ps[z[1]] && myP).map((z) => { const df = ps[z[1]] - myP; return { text: LN[z[0]] + ' ' + (df === 0 ? '=' : (df > 0 ? '+' : '−') + '$' + Math.abs(df)), style: 'font-size: 9.5px; font-weight: 600; letter-spacing: .01em; color: ' + (df === 0 ? 'var(--tx2)' : df > 0 ? 'var(--up)' : 'var(--down)') }; }),
         badge: bt, badgeStyle: 'align-self: stretch; margin: 0 2px; text-align: center; font-size: 10px; font-weight: 700; letter-spacing: .02em; padding: 5px 4px; line-height: 1.15; border-radius: 999px; background: ' + bc[0] + '; color: ' + bc[1],
         cols: cols.map((c, i) => ({ c, i })).sort((a, b) => (ps[b.i] || 0) - (ps[a.i] || 0)).map(({ c, i }) => {
           const p = ps[i];
@@ -484,33 +494,33 @@ class Component extends DCLogic {
         })
       };
     });
-    const selV = { B: cols[0].get(px), S: cols[1].get(px), F: cols[2].get(px) };
-    const selList = ['B', 'S', 'F'].filter((c) => selV[c]);
+    const selV = { B: cols[0].get(px), S: cols[1].get(px), F: cols[2].get(px), H: cols[3].get(px) };
+    const selList = CO.filter((c) => selV[c]);
     const selMax = selList.length ? Math.max.apply(null, selList.map((c) => selV[c])) : 0;
     const selMin = selList.length ? Math.min.apply(null, selList.map((c) => selV[c])) : 0;
     const selRC = {};
-    ['B', 'S', 'F'].forEach((c) => { selRC[c] = !selV[c] ? 'var(--mu)' : selList.length < 2 || selV[c] === selMin ? GREEN : selV[c] === selMax ? RED : ORANGE; });
+    CO.forEach((c) => { selRC[c] = !selV[c] ? 'var(--mu)' : selList.length < 2 || selV[c] === selMin ? GREEN : selV[c] === selMax ? RED : ORANGE; });
     const legend = cols.map((c) => ({ c, v: selV[c.co] || 0 })).sort((a, b) => b.v - a.v).map(({ c }) => ({ tag: LN[c.co], letter: LET[c.co], badge: badge(c.co, 22, selRC[c.co]), name: c.name }));
     const axisNote = all.length ? 'Har bir guruh — xonada necha kishi. Ustun balandligi — bir kishi uchun narx ($). Oltin halqa — ETIHAD. Ustunlar ' + base + ' $ dan boshlanadi.' : '';
-    const pickers = ['S', 'F'].filter((co) => cands[co].length > 1).map((co) => ({
+    const pickers = RIV.filter((co) => cands[co].length > 1).map((co) => ({
       title: LN[co] + ': ETIHAD paketiga o\'xshash paketlar', badge: badge(co, 22, selRC[co]), letter: LET[co],
       opts: cands[co].map((m, i) => { const on = i === pickIdx(co); return { label: m.r.pkg, sub: short(m.d) + (m.r.n ? ' · ' + m.r.n + ' kecha' : ''), price: priceOfM(m, px) ? fmt(priceOfM(m, px)) : '—', style: 'display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; text-align: left; padding: 10px 14px; border-radius: 14px; cursor: pointer; font-family: inherit; transition: all .2s; border: 1px solid ' + (on ? 'rgba(241,221,166,.9)' : 'var(--l2)') + '; background: ' + (on ? 'linear-gradient(180deg, #F1DDA6, #CFA24A)' : 'var(--f1)') + '; color: ' + (on ? '#2A1D00' : 'var(--tx2)'), click: () => this.setState({ ['p' + co]: i }) }; })
     }));
     const dateLong = date ? short(date) + ' · ' + wd(date) : '';
 
     // ---- sanalar bo'yicha qatorlar ----
-    const series = { B: [], S: [], F: [] };
+    const series = { B: [], S: [], F: [], H: [] };
     const rowsAll = ourDates.map((d) => {
       const pr = priceOn(our, d);
       const b = pr && pr[px] ? pr[px] : null;
-      const ms = forDate('S', d), mf = forDate('F', d);
-      const s = priceOfM(ms, px), f = priceOfM(mf, px);
-      series.B.push(b); series.S.push(s); series.F.push(f);
-      return { d, b, s, f };
+      const ms = forDate('S', d), mf = forDate('F', d), mh = forDate('H', d);
+      const s = priceOfM(ms, px), f = priceOfM(mf, px), h = priceOfM(mh, px);
+      series.B.push(b); series.S.push(s); series.F.push(f); series.H.push(h);
+      return { d, b, s, f, h };
     });
 
     const stOf = (r) => {
-      const others = [r.s, r.f].filter((v) => v);
+      const others = [r.s, r.f, r.h].filter((v) => v);
       const b0 = 'padding: 4px 9px; border-radius: 999px; font-size: 10.5px; font-weight: 700; letter-spacing: .02em; ';
       if (!r.b || !others.length) return { t: '—', s: b0 + 'color: var(--mu); background: var(--f1)' };
       const mn = Math.min.apply(null, others.concat([r.b]));
@@ -521,16 +531,16 @@ class Component extends DCLogic {
     };
     const showAll = !!S.all;
     const rows = (showAll ? rowsAll : rowsAll.slice(0, 4)).map((r) => {
-      const vals = [r.b, r.s, r.f].filter((v) => v);
+      const vals = [r.b, r.s, r.f, r.h].filter((v) => v);
       const mn = vals.length > 1 ? Math.min.apply(null, vals) : 0;
       const mx2 = vals.length > 1 ? Math.max.apply(null, vals) : 0;
       const tone = (v) => (!v ? null : vals.length < 2 ? GREEN : v === mn ? GREEN : v === mx2 ? RED : ORANGE);
       const cell = (v, isB) => { const t = tone(v); return 'padding: 14px 2px; text-align: center; font-weight: 700; font-size: 14px; margin: 3px; border-radius: 10px; color: ' + (t || 'var(--mu)') + '; background: ' + (t ? t + '22' : 'transparent') + (isB && t ? '; box-shadow: inset 0 0 0 1px ' + t + '88' : ''); };
       const st = stOf(r);
       return {
-        date: short(r.d), wd: wd(r.d), b: r.b ? fmt(r.b) : '—', s: r.s ? fmt(r.s) : '—', f: r.f ? fmt(r.f) : '—',
-        cB: cell(r.b, true), cS: cell(r.s), cF: cell(r.f), st: st.t, stStyle: st.s,
-        rowStyle: 'display: grid; grid-template-columns: minmax(0,1.3fr) minmax(0,1fr) minmax(0,1fr) minmax(0,1fr); align-items: center; width: 100%; border: 0; border-top: 1px solid var(--l1); color: inherit; font-size: 13px; cursor: pointer; padding: 0; background: ' + (r.d === date ? 'rgba(216,177,94,.09)' : 'transparent'),
+        date: short(r.d), wd: wd(r.d), b: r.b ? fmt(r.b) : '—', s: r.s ? fmt(r.s) : '—', f: r.f ? fmt(r.f) : '—', h: r.h ? fmt(r.h) : '—',
+        cB: cell(r.b, true), cS: cell(r.s), cF: cell(r.f), cH: cell(r.h), st: st.t, stStyle: st.s,
+        rowStyle: 'display: grid; grid-template-columns: minmax(0,1.2fr) repeat(4, minmax(0,1fr)); align-items: center; width: 100%; border: 0; border-top: 1px solid var(--l1); color: inherit; font-size: 13px; cursor: pointer; padding: 0; background: ' + (r.d === date ? 'rgba(216,177,94,.09)' : 'transparent'),
         click: () => this.setState({ date: r.d })
       };
     });
@@ -538,7 +548,7 @@ class Component extends DCLogic {
 
     // ---- silliq egri chiziq grafigi ----
     const n = Math.max(ourDates.length, 1);
-    const flat = [].concat(series.B, series.S, series.F).filter((v) => v);
+    const flat = [].concat(series.B, series.S, series.F, series.H).filter((v) => v);
     let lo = flat.length ? Math.min.apply(null, flat) : 0, hi = flat.length ? Math.max.apply(null, flat) : 1;
     if (hi === lo) { hi += 50; lo -= 50; }
     const pad = (hi - lo) * 0.14;
@@ -565,7 +575,7 @@ class Component extends DCLogic {
       flush();
       return withArea ? ar : d;
     };
-    const lines = { B: mk(series.B), S: mk(series.S), F: mk(series.F) };
+    const lines = { B: mk(series.B), S: mk(series.S), F: mk(series.F), H: mk(series.H) };
     const area = mk(series.B, true);
     const selIdx = Math.max(ourDates.indexOf(date), 0);
     const hv = S.hv != null && S.hv >= 0 && S.hv < ourDates.length ? +S.hv : null;
@@ -580,12 +590,12 @@ class Component extends DCLogic {
         text: fmt(Math.round(v))
       };
     });
-    const rk0 = ['B', 'S', 'F'].filter((c) => series[c][ci]).sort((a, b) => series[b][ci] - series[a][ci]);
+    const rk0 = CO.filter((c) => series[c][ci]).sort((a, b) => series[b][ci] - series[a][ci]);
     const RC = {};
     rk0.forEach((c, i) => { const v = series[c][ci]; RC[c] = rk0.length < 2 || v === series[rk0[rk0.length - 1]][ci] ? GREEN : v === series[rk0[0]][ci] ? RED : ORANGE; });
-    ['B', 'S', 'F'].forEach((c) => { if (!RC[c]) RC[c] = 'var(--mu)'; });
+    CO.forEach((c) => { if (!RC[c]) RC[c] = 'var(--mu)'; });
     const lc = RC;
-    const dots = ['F', 'S', 'B'].map((co) => {
+    const dots = ['H', 'F', 'S', 'B'].map((co) => {
       const v = series[co][ci];
       const sz = co === 'B' ? 14 : 11;
       return { style: 'position: absolute; width: ' + sz + 'px; height: ' + sz + 'px; border-radius: 50%; background: #07120E; border: 2px solid ' + RC[co] + '; box-sizing: border-box; box-shadow: none; left: ' + xPct(ci) + '%; top: ' + (v ? yPct(v) : 50) + '%; transform: translate(-50%, -50%); opacity: ' + (v ? 1 : 0) + '; pointer-events: none; transition: left .5s cubic-bezier(.2,.8,.2,1), top .5s cubic-bezier(.2,.8,.2,1), opacity .2s' };
@@ -593,7 +603,7 @@ class Component extends DCLogic {
     const cursor = 'position: absolute; top: 0; bottom: 0; width: 1px; background: linear-gradient(180deg, var(--f1), rgba(255,255,255,.45), var(--f1)); left: ' + xPct(ci) + '%; pointer-events: none; transition: left .5s cubic-bezier(.2,.8,.2,1)';
     const right = xPct(ci) > 55;
     const tip = 'position: absolute; top: 6px; ' + (right ? 'right: ' + (100 - xPct(ci) + 2) + '%' : 'left: ' + (xPct(ci) + 2) + '%') + '; min-width: 134px; padding: 9px 11px; border-radius: 13px; display: flex; flex-direction: column; gap: 4px; background: rgba(7,18,14,.92); --tx:#F1EEE4; --tx2:#B9C7BF; --mu:#8CA096; --l1:rgba(255,255,255,.08); --f1:rgba(255,255,255,.04); color: #F1EEE4; border: 1px solid rgba(216,177,94,.25); backdrop-filter: blur(10px); box-shadow: 0 12px 30px rgba(0,0,0,.55); pointer-events: none; transition: left .5s cubic-bezier(.2,.8,.2,1), right .5s cubic-bezier(.2,.8,.2,1)';
-    const tipRows = ['B', 'S', 'F'].sort((a, b) => (series[b][ci] || 0) - (series[a][ci] || 0)).map((co) => ({ name: LN[co], value: series[co][ci] ? fmt(series[co][ci]) : 'yo\'q', dot: 'width: 8px; height: 8px; border-radius: 50%; background: ' + RC[co] }));
+    const tipRows = CO.sort((a, b) => (series[b][ci] || 0) - (series[a][ci] || 0)).map((co) => ({ name: LN[co], value: series[co][ci] ? fmt(series[co][ci]) : 'yo\'q', dot: 'width: 8px; height: 8px; border-radius: 50%; background: ' + RC[co] }));
     const tipDate = cd ? short(cd) + ' · ' + wd(cd) : '';
     const step = Math.max(1, Math.ceil(n / 6));
     const xlab = ourDates.map((d, i) => ({ text: (i === ci || (i % step === 0 && Math.abs(i - ci) > 1)) ? short(d) : '', style: 'flex: 1 1 0; min-width: 0; text-align: center; font-size: 10.5px; color: ' + (i === ci ? '#F1DDA6' : 'var(--mu)') + '; font-weight: ' + (i === ci ? 700 : 500) }));
@@ -601,7 +611,7 @@ class Component extends DCLogic {
     const rk = (ourIdx % 2) * 4 + (px - 1);
     const svgWrap = 'position: absolute; left: 0; right: 0; top: 0; bottom: 0; animation: rv' + rk + ' 1.8s cubic-bezier(.45,.05,.2,1) both';
     const paxTabs = [1, 2, 3, 4].map((x) => ({ label: x + ' kishi', click: () => this.setState({ px: x }), style: 'min-height: 32px; padding: 0 11px; border-radius: 10px; border: 0; cursor: pointer; font-size: 12.5px; font-weight: 600; transition: all .25s; background: ' + (x === px ? 'linear-gradient(180deg, #F1DDA6, #CFA24A)' : 'transparent') + '; color: ' + (x === px ? '#2A1D00' : 'var(--tx2)') }));
-    const tiles = ['B', 'S', 'F'].sort((a, b) => (series[b][ci] || 0) - (series[a][ci] || 0)).map((co) => {
+    const tiles = CO.sort((a, b) => (series[b][ci] || 0) - (series[a][ci] || 0)).map((co) => {
       const v = series[co][ci], b = series.B[ci];
       let delta = '', dc = 'var(--mu)';
       if (co === 'B') delta = 'bizning narx';
@@ -634,7 +644,7 @@ class Component extends DCLogic {
       return hit ? all[hit] : null;
     };
     const svOf = (co) => co === 'B' ? (our ? SV.B[our.id] : null) : (chosen[co] ? (chosen[co].r.svc || staticSvc(co, chosen[co].r)) : null);
-    const sv = { B: svOf('B'), S: svOf('S'), F: svOf('F') };
+    const sv = { B: svOf('B'), S: svOf('S'), F: svOf('F'), H: svOf('H') };
     const cellBox = (co) => 'padding: 11px 6px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; text-align: center; border-left: 1px solid #E6DEC8; background: linear-gradient(180deg, #FCF2CB, #F8E7A9)';
     const T1 = 'font-size: 12px; font-weight: 600; line-height: 1.25; color: #1D2C26';
     const mk2 = (co, ok, t1, t2) => ({ box: cellBox(co), isOk: ok === true, isNo: ok === false, t1, t1Style: T1 + (t1 === '—' ? '; color: #A7AFA9; font-weight: 500' : ''), t2: t2 || '' });
@@ -651,7 +661,7 @@ class Component extends DCLogic {
     };
     const trainCell = (co) => { const s = sv[co]; if (!s) return dash(co); return s.train ? mk2(co, true, 'Haramain', '') : mk2(co, false, 'yo\'q', ''); };
     const xferCell = (co) => { const s = sv[co]; if (!s || !s.xfer) return dash(co); if (s.xfer.charAt(0) === '-') return mk2(co, false, 'qo\'shimcha', s.xfer.slice(1)); return mk2(co, true, s.xfer, ''); };
-    const hasJidda = ['B', 'S', 'F'].some((co) => sv[co] && (sv[co].hot || []).some((h) => h[0] === 'Jidda'));
+    const hasJidda = CO.some((co) => sv[co] && (sv[co].hot || []).some((h) => h[0] === 'Jidda'));
     const IC = {
       air: 'M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z',
       bed: 'M2 4v16M2 8h18a2 2 0 0 1 2 2v10M2 17h20M6 8v9',
@@ -660,14 +670,14 @@ class Component extends DCLogic {
       bus: 'M8 6v6M15 6v6M2 12h19.6M18 18h3s.5-1.7.8-2.8c.1-.4.2-.8.2-1.2 0-.4-.1-.8-.2-1.2l-1.4-5C20.1 6.8 19.1 6 18 6H4a2 2 0 0 0-2 2v10h3M9 18h5M7 18a2 2 0 1 0 4 0 2 2 0 1 0-4 0M14 18a2 2 0 1 0 4 0 2 2 0 1 0-4 0'
     };
     const svcRows = [
-      { label: 'Aviachipta', icon: IC.air, cells: ['B', 'S', 'F'].map(airCell) },
-      { label: 'Madina hotel', icon: IC.bed, cells: ['B', 'S', 'F'].map((c) => hotelCell(c, 'Madina')) },
-      { label: 'Makka hotel', icon: IC.bed, cells: ['B', 'S', 'F'].map((c) => hotelCell(c, 'Makka')) }
+      { label: 'Aviachipta', icon: IC.air, cells: CO.map(airCell) },
+      { label: 'Madina hotel', icon: IC.bed, cells: CO.map((c) => hotelCell(c, 'Madina')) },
+      { label: 'Makka hotel', icon: IC.bed, cells: CO.map((c) => hotelCell(c, 'Makka')) }
     ];
-    if (hasJidda) svcRows.push({ label: 'Jidda hotel', icon: IC.bed, cells: ['B', 'S', 'F'].map((c) => hotelCell(c, 'Jidda')) });
-    svcRows.push({ label: 'Ovqat', icon: IC.food, cells: ['B', 'S', 'F'].map(mealCell) });
-    svcRows.push({ label: 'Poyezd', icon: IC.train, cells: ['B', 'S', 'F'].map(trainCell) });
-    svcRows.push({ label: 'Transfer', icon: IC.bus, cells: ['B', 'S', 'F'].map(xferCell) });
+    if (hasJidda) svcRows.push({ label: 'Jidda hotel', icon: IC.bed, cells: CO.map((c) => hotelCell(c, 'Jidda')) });
+    svcRows.push({ label: 'Ovqat', icon: IC.food, cells: CO.map(mealCell) });
+    svcRows.push({ label: 'Poyezd', icon: IC.train, cells: CO.map(trainCell) });
+    svcRows.push({ label: 'Transfer', icon: IC.bus, cells: CO.map(xferCell) });
     const banner = 'position: relative; height: ' + (our && our.hq ? 170 : 120) + 'px; background: linear-gradient(180deg, rgba(5,13,10,' + (our && our.hq ? '.05' : '.35') + ') 25%, rgba(5,13,10,.94)), url(' + (our ? (our.hq || our.cover) : '') + ') center / cover no-repeat, linear-gradient(135deg, ' + (our ? TGRAD[our.tier] : '#0E2B27') + ')';
     const bannerName = our ? our.name : '';
     const bannerLine = our ? our.tier + ' · ' + our.n + ' kecha · ' + (our.dep === 'thu' ? 'payshanba' : 'shanba') : '';
@@ -675,7 +685,7 @@ class Component extends DCLogic {
     const tabs = [['p', 'Narxlar'], ['x', 'Xizmatlar']].map((t) => ({ label: t[1], click: () => this.setState({ tab: t[0] }), style: 'flex: 1; min-height: 42px; border-radius: 12px; border: 0; cursor: pointer; font-size: 14px; font-weight: 600; letter-spacing: .01em; transition: all .25s; background: ' + (tab === t[0] ? 'linear-gradient(180deg, #F1DDA6, #CFA24A)' : 'transparent') + '; color: ' + (tab === t[0] ? '#2A1D00' : 'var(--tx2)') + '; box-shadow: none' }));
 
     const nightsOf = (co) => (co === 'B' ? (our && our.n) : (chosen[co] && chosen[co].r.n));
-    const miniRows = ['B', 'S', 'F'].map((co, k) => {
+    const miniRows = CO.map((co, k) => {
       const nm = cols[k].name;
       const ok = co === 'B' ? !!our : !!chosen[co];
       const hs = ((sv[co] && sv[co].hot) || []).filter((h) => h[0] !== 'Jidda').slice(0, 2);

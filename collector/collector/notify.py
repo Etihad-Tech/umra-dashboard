@@ -25,8 +25,8 @@ from .db import RestStore
 
 log = logging.getLogger("collector.notify")
 
-COMPANY = {"B": "ETIHAD", "S": "SAFO", "F": "MANDARIN"}
-COMPANY_ORDER = ["B", "S", "F", None]
+COMPANY = {"B": "ETIHAD", "S": "SAFO", "F": "MANDARIN", "H": "HIKMAT"}
+COMPANY_ORDER = ["B", "S", "F", "H", None]
 TIER = {"premium": "Premium", "lux": "Lux", "comfort": "Komfort", "econom": "Ekonom"}
 MAX_MESSAGE = 3800            # Telegram's limit is 4096 characters
 PER_PASS = 500

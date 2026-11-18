@@ -19,7 +19,7 @@ Two containers on one server: **collector** (fetches prices every 15 min, sends 
 1. Server needs Docker with the compose plugin, `git`, `python3`. Ports 80 and 443 open. DNS A-record for the domain points to the server.
 2. `git clone` the repo, then:
    ```
-   cp collector/.env.example collector/.env     # fill in: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY (secret key), MANDARIN_URL, SAFO_SITE_URL, ETIHAD_API_URL, ETIHAD_API_KEY, TELEGRAM_*
+   cp collector/.env.example collector/.env     # fill in: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY (secret key), MANDARIN_URL, SAFO_SITE_URL, HIKMAT_SITE_URL (optional), ETIHAD_API_URL, ETIHAD_API_KEY, TELEGRAM_*
    cp deploy/.env.example deploy/.env           # fill in: SITE_DOMAIN, SUPABASE_URL, SUPABASE_ANON_KEY (PUBLIC key only)
    ./deploy/deploy.sh
    ```

@@ -16,7 +16,7 @@
   var REFRESH_MS = 5 * 60 * 1000;
   var TASHKENT_MS = 5 * 3600 * 1000;     // Asia/Tashkent is UTC+5 all year round
   var TIER_LABEL = { premium: 'Premium', lux: 'Lux', comfort: 'Comfort', econom: 'Comfort' };
-  var NAMES = { B: 'ETIHAD', S: 'SAFO', F: 'MANDARIN' };
+  var NAMES = { B: 'ETIHAD', S: 'SAFO', F: 'MANDARIN', H: 'HIKMAT' };
   var DOWN_AFTER = 3;                    // same number as the collector's source_down alert
   var WEEKDAYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
 

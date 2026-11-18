@@ -13,7 +13,7 @@ from datetime import datetime, timedelta, timezone
 
 import requests
 
-NAMES = {"B": "ETIHAD", "S": "SAFO", "F": "MANDARIN"}
+NAMES = {"B": "ETIHAD", "S": "SAFO", "F": "MANDARIN", "H": "HIKMAT"}
 
 
 def stale_sources(rows: list[dict], now: datetime) -> list[str]:

@@ -34,3 +34,8 @@ A price more than 30% away from the current one asks for confirmation. Service w
 1. Review and apply `supabase/migrations/20261108000006_manual_packages.sql` in the Supabase SQL Editor.
 2. Publish the site. The service worker is `umra-v4`, so browsers pick up the new page.
 3. Give people the `editor` role (see `supabase/AUTH.md`).
+
+
+## Hikmat Umra
+Hikmat appears in the company list like the others. Its automatic price is only "from X $" for 4 people, so please enter the real
+prices (1 to 4 people, per date) here when you know them; the manual price replaces the automatic one on the dashboard.

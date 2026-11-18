@@ -26,3 +26,14 @@ Fix by adding the competitor's raw category (upper case) to `category_map`, for 
     insert into public.category_map (raw, tier, note) values ('SOME RAW NAME', 'lux', 'Safo') on conflict (raw) do nothing;
 
 Then run the collector once; packages pick up the tier on the next run.
+
+
+## Fourth company: Hikmat Umra (Phase 8)
+The dashboard now shows ETIHAD, SAFO, MANDARIN and HIKMAT. Hikmat's public site has no dated prices:
+- It publishes one price "from X $ per person" per package, and the group departure dates (Wednesdays).
+- The collector (`collector/collector/hikmat.py`) stores the "from" price as the price for **4 people** (the cheapest room type).
+  Prices for 1, 2 and 3 people, and exact prices per date, are entered by hand on `kiritish.html` (a manual entry wins).
+- Most Hikmat packages are 13+ nights, ours 5-9, so only packages within 2 nights of ours (today: Elita, 7 nights) are compared.
+- Set `HIKMAT_SITE_URL` in `collector/.env`. If it is not set, `--source all` skips Hikmat (with a warning).
+- Run migration `supabase/migrations/20261108000010_hikmat.sql` first (adds company `H`, its source and the tier of `ELITA`).
+- Tiers of MAXSUS, BARAKA, AFZAL and ISTANBUL + UMRA are not decided yet (tier NULL = not compared).
