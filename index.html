@@ -64,9 +64,9 @@ button:focus-visible{outline:2px solid #D8B15E;outline-offset:2px}
 .mchips button{max-width:100%}
 .tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
 @media (max-width:560px){.tiles{grid-template-columns:repeat(2,1fr)}}
-.mrow{display:grid;grid-template-columns:60px minmax(0,1fr);column-gap:7px;align-items:center}
-.mtag{display:flex;align-items:center;justify-content:center;text-align:center;font-size:10.5px;font-weight:700;letter-spacing:.03em}
-.mcards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px}
+.mrow{display:grid;grid-template-columns:68px minmax(0,1fr);column-gap:8px;align-items:center}
+.mtag{display:flex;align-items:center;justify-content:center;text-align:center;font-size:12px;font-weight:700;letter-spacing:.03em}
+.mcards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
 .mchips{grid-column:2;display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}
 .mchips:not(:has(button)){display:none}
 .num{font-variant-numeric:tabular-nums;font-feature-settings:"tnum"}
@@ -136,25 +136,25 @@ button:focus-visible{outline:2px solid #D8B15E;outline-offset:2px}
 <button class="num" onClick="{{k.click}}" style="{{k.style}}"><span style="{{k.dayStyle}}">{{k.day}}</span><span style="{{k.subStyle}}">{{k.sub}}</span></button>
 </sc-for>
 </div>
-<div style="display: flex; flex-direction: column; gap: 6px; max-width: 600px">
+<div style="display: flex; flex-direction: column; gap: 6px; width: 100%">
+<div style="padding: 0 2px">
 <sc-for list="{{mini}}" as="row" hint-placeholder-count="3">
-<div class="mrow">
-<div class="mtag"><span>{{row.tag}}</span></div>
-<div class="mcards">
-<sc-for list="{{row.tl}}" as="m" hint-placeholder-count="3">
-<div style="padding: 3px 6px 3px; border-radius: 9px; background: var(--f1); border: 1px solid var(--l1); display: flex; flex-direction: column; gap: 0; min-width: 0">
-<div style="display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 6px"><span style="font-size: 8.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--gold-tx); font-weight: 700; line-height: 1.3">{{m.k}}</span><span style="font-size: 9.5px; line-height: 1.3; color: var(--mu)">{{m.sub}}</span></div>
-<span style="font-size: 10.5px; font-weight: 600; line-height: 1.25; color: var(--tx)">{{m.v}}</span>
-</div>
-</sc-for>
-</div>
-<div class="mchips">
+<div style="display: flex; align-items: center; gap: 14px; padding: 13px 2px; border-top: 1px solid var(--l1)">
+<span class="serif num" style="flex: none; width: 26px; font-size: 24px; font-weight: 600; color: {{row.rc}}">{{row.rankTxt}}</span>
+<div style="flex: 1; display: flex; flex-direction: column; gap: 1px; min-width: 0">
+<span style="font-size: 13px; font-weight: 700; letter-spacing: .03em; color: var(--tx)">{{row.tag}}</span>
+<span style="font-size: 10.5px; color: var(--mu)">{{row.subLine}}</span>
+<span style="font-size: 10px; color: var(--gold-tx)">{{row.hotelLine}}</span>
+<div class="mchips" style="margin-top: 3px">
 <sc-for list="{{row.opts}}" as="o" hint-placeholder-count="2">
 <button onClick="{{o.click}}" style="{{o.style}}"><span>{{o.label}}</span></button>
 </sc-for>
 </div>
 </div>
+<span class="serif num" style="font-size: 19px; font-weight: 700; color: {{row.rc}}; flex: none; text-align: right">{{row.priceTxt}}</span>
+</div>
 </sc-for>
+</div>
 </div>
 </section>
 
@@ -594,6 +594,8 @@ class Component extends DCLogic {
     const RC = {};
     rk0.forEach((c, i) => { const v = series[c][ci]; RC[c] = rk0.length < 2 || v === series[rk0[rk0.length - 1]][ci] ? GREEN : v === series[rk0[0]][ci] ? RED : ORANGE; });
     CO.forEach((c) => { if (!RC[c]) RC[c] = 'var(--mu)'; });
+    const rankOf = {};
+    rk0.slice().reverse().forEach((c, i) => { rankOf[c] = i + 1; });
     const lc = RC;
     const dots = ['H', 'F', 'S', 'B'].map((co) => {
       const v = series[co][ci];
@@ -691,9 +693,19 @@ class Component extends DCLogic {
       const hs = ((sv[co] && sv[co].hot) || []).filter((h) => h[0] !== 'Jidda').slice(0, 2);
       const tl = ok ? [{ k: 'Jami', v: nightsOf(co) ? nightsOf(co) + ' kecha' : '—', sub: co === 'B' ? wd(date) + ' · ' + our.tier : (chosen[co].r.cat || '') }].concat(hs.map((h) => ({ k: h[0], v: h[1], sub: h[2] + ' kecha' }))) : [{ k: 'Paket', v: 'mos paket yo\'q', sub: '' }];
       const opts = co !== 'B' && cands[co].length > 1 ? cands[co].map((m, i) => { const on = i === pickIdx(co); return { label: m.r.pkg + ' · ' + short(m.d), price: priceOfM(m, px) ? fmt(priceOfM(m, px)) : '—', style: 'display: inline-flex; align-items: center; gap: 8px; padding: 6px 11px; border-radius: 999px; cursor: pointer; font-family: inherit; font-size: 12px; font-weight: 600; transition: all .2s; border: 1px solid ' + (on ? 'rgba(241,221,166,.9)' : 'var(--l2)') + '; background: ' + (on ? 'linear-gradient(180deg, #F1DDA6, #CFA24A)' : 'var(--f1)') + '; color: ' + (on ? '#2A1D00' : 'var(--tx2)'), click: () => this.setState({ ['p' + co]: i }) }; }) : [];
-      return { badge: badge(co, 22, RC[co]), letter: LET[co], tag: LN[co], name: nm, tl, opts };
+      const priceVal = series[co][ci];
+      const priceTxt = priceVal ? fmt(priceVal) : (ok ? '—' : 'mos paket yo\'q');
+      const rankTxt = priceVal ? String(rankOf[co]) : '—';
+      const tTile = tl[0];
+      const subLine = [tTile.sub, tTile.v !== '—' ? tTile.v : null].filter(Boolean).join(' · ');
+      const hotelLine = tl.slice(1).map((h) => h.k + ' ' + h.sub).join(' · ');
+      return { badge: badge(co, 22, RC[co]), letter: LET[co], tag: LN[co], name: nm, tl, opts, rc: RC[co], priceTxt, rankTxt, subLine, hotelLine };
     });
-    const mini = miniRows;
+    const mini = miniRows.slice().sort((a, b) => {
+      const ra = a.rankTxt === '—' ? 99 : +a.rankTxt;
+      const rb = b.rankTxt === '—' ? 99 : +b.rankTxt;
+      return ra - rb;
+    });
     const ourLine = our ? our.name + ' · ' + our.tier + ' · ' + our.n + ' kecha · ' + wd(date) + ' · ' + our.hotel : '';
     return {
       asOfText: fresh.text, freshStyle: fresh.style, dotStyle: fresh.dot, cards, dts, groups, legend, axisNote, pickers, dateLong, ourLine, mini, lc,
