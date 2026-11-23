@@ -1,9 +1,8 @@
-"""umra.uz source — three suppliers (Etihad, Safar Travel, Real Dreams) published on umra.uz.
+"""umra.uz source — our two suppliers (Etihad and Safar Travel) published on umra.uz.
 
-Three operator pages are read, nothing else:
+Two operator pages are read, nothing else:
     GET {UMRA_UZ_URL}/uz/operators/etihad
     GET {UMRA_UZ_URL}/uz/operators/safar-time-exclusive
-    GET {UMRA_UZ_URL}/uz/operators/real-dreams
 
 Each page embeds the Next.js flight payload in script tags:
     self.__next_f.push([1,"…"])
@@ -218,24 +217,15 @@ def parse_both_pages(etihad_html: str, safo_html: str) -> tuple[ParseResult, Par
     return r_etihad, r_safo
 
 
-def parse_three_pages(etihad_html: str, safo_html: str, real_dreams_html: str) -> tuple[ParseResult, ParseResult, ParseResult]:
-    """Parse the three operator pages and return (etihad_result, safo_result, real_dreams_result)."""
-    r_etihad = parse_page(etihad_html, "etihad")
-    r_safo = parse_page(safo_html, "safar travel")
-    r_real_dreams = parse_page(real_dreams_html, "real dreams")
-    return r_etihad, r_safo, r_real_dreams
-
-
 # ------------------------------------------------------------------ fetching
 
 def fetch_pages(
     site_url: str,
     etihad_slug: str = "etihad",
     safo_slug: str = "safar-time-exclusive",
-    real_dreams_slug: str = "real-dreams",
     session: requests.Session | None = None,
-) -> tuple[str, str, str]:
-    """Fetch the three operator pages. Returns (etihad_html, safo_html, real_dreams_html)."""
+) -> tuple[str, str]:
+    """Fetch the two operator pages. Returns (etihad_html, safo_html)."""
     s = session or requests.Session()
     base = site_url.rstrip("/")
     headers = {
@@ -246,7 +236,6 @@ def fetch_pages(
     paths = {
         "etihad": f"/uz/operators/{etihad_slug}",
         "safo": f"/uz/operators/{safo_slug}",
-        "real_dreams": f"/uz/operators/{real_dreams_slug}",
     }
 
     texts: list[str] = []
@@ -262,4 +251,4 @@ def fetch_pages(
             raise SchemaError(f"umra_uz: {path} is unexpectedly large")
         texts.append(r.text)
 
-    return texts[0], texts[1], texts[2]
+    return texts[0], texts[1]
