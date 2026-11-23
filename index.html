@@ -194,6 +194,7 @@ button:focus-visible{outline:2px solid #D8B15E;outline-offset:2px}
 <linearGradient id="ga" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="{{lc.B}}" stop-opacity=".16"></stop><stop offset="1" stop-color="{{lc.B}}" stop-opacity="0"></stop></linearGradient>
 </defs>
 <path d="{{area}}" fill="url(#ga)" stroke="none"></path>
+<path d="{{lines.R}}" fill="none" stroke="{{lc.R}}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"></path>
 <path d="{{lines.H}}" fill="none" stroke="{{lc.H}}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"></path>
 <path d="{{lines.F}}" fill="none" stroke="{{lc.F}}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"></path>
 <path d="{{lines.S}}" fill="none" stroke="{{lc.S}}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"></path>
@@ -269,12 +270,13 @@ button:focus-visible{outline:2px solid #D8B15E;outline-offset:2px}
 <span class="serif" style="font-weight: 600; font-size: 22px; letter-spacing: -.01em">Sanalar bo'yicha narx</span>
 </div>
 <div style="border-radius: 16px; overflow: hidden; border: 1px solid var(--l1); background: var(--w1)">
-<div style="display: grid; grid-template-columns: minmax(0,1.2fr) repeat(4, minmax(0,1fr)); align-items: center; background: var(--f1); font-weight: 600; font-size: 10.5px; letter-spacing: .08em; color: var(--tx2)">
+<div style="display: grid; grid-template-columns: minmax(0,1.2fr) repeat(5, minmax(0,1fr)); align-items: center; background: var(--f1); font-weight: 600; font-size: 10.5px; letter-spacing: .08em; color: var(--tx2)">
 <div style="padding: 11px 8px">SANA</div>
 <div style="padding: 11px 2px; text-align: center; color: var(--gold-tx); background: rgba(227,189,98,.12)">ETIHAD</div>
 <div style="padding: 11px 2px; text-align: center">SAFO</div>
 <div style="padding: 11px 2px; text-align: center">MANDARIN</div>
 <div style="padding: 11px 2px; text-align: center">HIKMAT</div>
+<div style="padding: 11px 2px; text-align: center">REAL DREAMS</div>
 </div>
 <sc-for list="{{rows}}" as="r" hint-placeholder-count="4">
 <button class="row" onClick="{{r.click}}" style="{{r.rowStyle}}">
@@ -283,6 +285,7 @@ button:focus-visible{outline:2px solid #D8B15E;outline-offset:2px}
 <div class="num" style="{{r.cS}}">{{r.s}}</div>
 <div class="num" style="{{r.cF}}">{{r.f}}</div>
 <div class="num" style="{{r.cH}}">{{r.h}}</div>
+<div class="num" style="{{r.cR}}">{{r.r}}</div>
 </button>
 </sc-for>
 </div>
@@ -358,10 +361,10 @@ class Component extends DCLogic {
     const MS = ['yan', 'fev', 'mar', 'apr', 'may', 'iyn', 'iyl', 'avg', 'sen', 'okt', 'noy', 'dek'];
     const wd = (d) => WD[new Date(dms(d) * 864e5).getUTCDay()];
     const ws = (d) => WS[new Date(dms(d) * 864e5).getUTCDay()];
-    const LN = { B: 'ETIHAD', S: 'SAFO', F: 'MANDARIN', H: 'HIKMAT' };
-    const CO = ['B', 'S', 'F', 'H'], RIV = ['S', 'F', 'H'];   // all companies / competitors
-    const LET = { B: 'E', S: 'S', F: 'M', H: 'H' };
-    const LC = { B: '#E3BD62', S: '#F08A5D', F: '#5AA9F0', H: '#B48CE8' };
+    const LN = { B: 'ETIHAD', S: 'SAFO', F: 'MANDARIN', H: 'HIKMAT', R: 'REAL DREAMS' };
+    const CO = ['B', 'S', 'F', 'H', 'R'], RIV = ['S', 'F', 'H', 'R'];   // all companies / competitors
+    const LET = { B: 'E', S: 'S', F: 'M', H: 'H', R: 'R' };
+    const LC = { B: '#E3BD62', S: '#F08A5D', F: '#5AA9F0', H: '#B48CE8', R: '#79C7A0' };
     const LG = { B: '#F4E2AE, #C99A3C', S: '#FFB591, #DE5B2E', F: '#92C8F7, #2F78D0', H: '#D9C2F7, #7A4FC4' };
     const GROUP = { Premium: ['premium'], Lux: ['lux'], Comfort: ['comfort', 'econom'] };   // tiers from the database (category_map)
     const TGRAD = { Premium: '#3A1F52, #7A3FA0', Lux: '#4A3408, #B07A12', Comfort: '#14304F, #2F6FB0' };
@@ -455,7 +458,8 @@ class Component extends DCLogic {
       { co: 'B', name: our ? our.name : '', get: (x) => (ourPrice && ourPrice[x]) || null },
       { co: 'S', name: chosen.S ? chosen.S.r.pkg + ' (' + short(chosen.S.d) + ')' : 'mos paket yo\'q', get: (x) => priceOfM(chosen.S, x) },
       { co: 'F', name: chosen.F ? chosen.F.r.pkg + ' (' + short(chosen.F.d) + ')' : 'mos paket yo\'q', get: (x) => priceOfM(chosen.F, x) },
-      { co: 'H', name: chosen.H ? chosen.H.r.pkg + ' (' + short(chosen.H.d) + ')' : 'mos paket yo\'q', get: (x) => priceOfM(chosen.H, x) }
+      { co: 'H', name: chosen.H ? chosen.H.r.pkg + ' (' + short(chosen.H.d) + ')' : 'mos paket yo\'q', get: (x) => priceOfM(chosen.H, x) },
+      { co: 'R', name: chosen.R ? chosen.R.r.pkg + ' (' + short(chosen.R.d) + ')' : 'mos paket yo\'q', get: (x) => priceOfM(chosen.R, x) }
     ];
     const all = [];
     [1, 2, 3, 4].forEach((x) => cols.forEach((c) => { const p = c.get(x); if (p) all.push(p); }));
@@ -479,7 +483,7 @@ class Component extends DCLogic {
       return {
         title: x + ' kishi', click: () => this.setState({ px: x }),
         box: 'display: flex; flex-direction: column; gap: 8px; min-width: 0; padding: 12px 5px 10px; cursor: pointer; transition: background .25s; border-left: 1px solid var(--f1); background: ' + (x === px ? 'rgba(241,221,166,.07)' : 'transparent') + '; box-shadow: ' + (x === px ? 'inset 0 -2px 0 #E3BD62' : 'none'),
-        diffs: [['S', 1], ['F', 2], ['H', 3]].filter((z) => ps[z[1]] && myP).map((z) => { const df = ps[z[1]] - myP; return { text: LN[z[0]] + ' ' + (df === 0 ? '=' : (df > 0 ? '+' : '−') + '$' + Math.abs(df)), style: 'font-size: 9.5px; font-weight: 600; letter-spacing: .01em; color: ' + (df === 0 ? 'var(--tx2)' : df > 0 ? 'var(--up)' : 'var(--down)') }; }),
+        diffs: [['S', 1], ['F', 2], ['H', 3], ['R', 4]].filter((z) => ps[z[1]] && myP).map((z) => { const df = ps[z[1]] - myP; return { text: LN[z[0]] + ' ' + (df === 0 ? '=' : (df > 0 ? '+' : '−') + '$' + Math.abs(df)), style: 'font-size: 9.5px; font-weight: 600; letter-spacing: .01em; color: ' + (df === 0 ? 'var(--tx2)' : df > 0 ? 'var(--up)' : 'var(--down)') }; }),
         badge: bt, badgeStyle: 'align-self: stretch; margin: 0 2px; text-align: center; font-size: 10px; font-weight: 700; letter-spacing: .02em; padding: 5px 4px; line-height: 1.15; border-radius: 999px; background: ' + bc[0] + '; color: ' + bc[1],
         cols: cols.map((c, i) => ({ c, i })).sort((a, b) => (ps[b.i] || 0) - (ps[a.i] || 0)).map(({ c, i }) => {
           const p = ps[i];
@@ -494,7 +498,7 @@ class Component extends DCLogic {
         })
       };
     });
-    const selV = { B: cols[0].get(px), S: cols[1].get(px), F: cols[2].get(px), H: cols[3].get(px) };
+    const selV = { B: cols[0].get(px), S: cols[1].get(px), F: cols[2].get(px), H: cols[3].get(px), R: cols[4].get(px) };
     const selList = CO.filter((c) => selV[c]);
     const selMax = selList.length ? Math.max.apply(null, selList.map((c) => selV[c])) : 0;
     const selMin = selList.length ? Math.min.apply(null, selList.map((c) => selV[c])) : 0;
@@ -509,18 +513,18 @@ class Component extends DCLogic {
     const dateLong = date ? short(date) + ' · ' + wd(date) : '';
 
     // ---- sanalar bo'yicha qatorlar ----
-    const series = { B: [], S: [], F: [], H: [] };
+    const series = { B: [], S: [], F: [], H: [], R: [] };
     const rowsAll = ourDates.map((d) => {
       const pr = priceOn(our, d);
       const b = pr && pr[px] ? pr[px] : null;
-      const ms = forDate('S', d), mf = forDate('F', d), mh = forDate('H', d);
-      const s = priceOfM(ms, px), f = priceOfM(mf, px), h = priceOfM(mh, px);
-      series.B.push(b); series.S.push(s); series.F.push(f); series.H.push(h);
-      return { d, b, s, f, h };
+      const ms = forDate('S', d), mf = forDate('F', d), mh = forDate('H', d), mr = forDate('R', d);
+      const s = priceOfM(ms, px), f = priceOfM(mf, px), h = priceOfM(mh, px), r = priceOfM(mr, px);
+      series.B.push(b); series.S.push(s); series.F.push(f); series.H.push(h); series.R.push(r);
+      return { d, b, s, f, h, r };
     });
 
     const stOf = (r) => {
-      const others = [r.s, r.f, r.h].filter((v) => v);
+      const others = [r.s, r.f, r.h, r.r].filter((v) => v);
       const b0 = 'padding: 4px 9px; border-radius: 999px; font-size: 10.5px; font-weight: 700; letter-spacing: .02em; ';
       if (!r.b || !others.length) return { t: '—', s: b0 + 'color: var(--mu); background: var(--f1)' };
       const mn = Math.min.apply(null, others.concat([r.b]));
@@ -531,16 +535,16 @@ class Component extends DCLogic {
     };
     const showAll = !!S.all;
     const rows = (showAll ? rowsAll : rowsAll.slice(0, 4)).map((r) => {
-      const vals = [r.b, r.s, r.f, r.h].filter((v) => v);
+      const vals = [r.b, r.s, r.f, r.h, r.r].filter((v) => v);
       const mn = vals.length > 1 ? Math.min.apply(null, vals) : 0;
       const mx2 = vals.length > 1 ? Math.max.apply(null, vals) : 0;
       const tone = (v) => (!v ? null : vals.length < 2 ? GREEN : v === mn ? GREEN : v === mx2 ? RED : ORANGE);
       const cell = (v, isB) => { const t = tone(v); return 'padding: 14px 2px; text-align: center; font-weight: 700; font-size: 14px; margin: 3px; border-radius: 10px; color: ' + (t || 'var(--mu)') + '; background: ' + (t ? t + '22' : 'transparent') + (isB && t ? '; box-shadow: inset 0 0 0 1px ' + t + '88' : ''); };
       const st = stOf(r);
       return {
-        date: short(r.d), wd: wd(r.d), b: r.b ? fmt(r.b) : '—', s: r.s ? fmt(r.s) : '—', f: r.f ? fmt(r.f) : '—', h: r.h ? fmt(r.h) : '—',
-        cB: cell(r.b, true), cS: cell(r.s), cF: cell(r.f), cH: cell(r.h), st: st.t, stStyle: st.s,
-        rowStyle: 'display: grid; grid-template-columns: minmax(0,1.2fr) repeat(4, minmax(0,1fr)); align-items: center; width: 100%; border: 0; border-top: 1px solid var(--l1); color: inherit; font-size: 13px; cursor: pointer; padding: 0; background: ' + (r.d === date ? 'rgba(216,177,94,.09)' : 'transparent'),
+        date: short(r.d), wd: wd(r.d), b: r.b ? fmt(r.b) : '—', s: r.s ? fmt(r.s) : '—', f: r.f ? fmt(r.f) : '—', h: r.h ? fmt(r.h) : '—', r: r.r ? fmt(r.r) : '—',
+        cB: cell(r.b, true), cS: cell(r.s), cF: cell(r.f), cH: cell(r.h), cR: cell(r.r), st: st.t, stStyle: st.s,
+        rowStyle: 'display: grid; grid-template-columns: minmax(0,1.2fr) repeat(5, minmax(0,1fr)); align-items: center; width: 100%; border: 0; border-top: 1px solid var(--l1); color: inherit; font-size: 13px; cursor: pointer; padding: 0; background: ' + (r.d === date ? 'rgba(216,177,94,.09)' : 'transparent'),
         click: () => this.setState({ date: r.d })
       };
     });
@@ -548,7 +552,7 @@ class Component extends DCLogic {
 
     // ---- silliq egri chiziq grafigi ----
     const n = Math.max(ourDates.length, 1);
-    const flat = [].concat(series.B, series.S, series.F, series.H).filter((v) => v);
+    const flat = [].concat(series.B, series.S, series.F, series.H, series.R).filter((v) => v);
     let lo = flat.length ? Math.min.apply(null, flat) : 0, hi = flat.length ? Math.max.apply(null, flat) : 1;
     if (hi === lo) { hi += 50; lo -= 50; }
     const pad = (hi - lo) * 0.14;
@@ -575,7 +579,7 @@ class Component extends DCLogic {
       flush();
       return withArea ? ar : d;
     };
-    const lines = { B: mk(series.B), S: mk(series.S), F: mk(series.F), H: mk(series.H) };
+    const lines = { B: mk(series.B), S: mk(series.S), F: mk(series.F), H: mk(series.H), R: mk(series.R) };
     const area = mk(series.B, true);
     const selIdx = Math.max(ourDates.indexOf(date), 0);
     const hv = S.hv != null && S.hv >= 0 && S.hv < ourDates.length ? +S.hv : null;
@@ -597,7 +601,7 @@ class Component extends DCLogic {
     const rankOf = {};
     rk0.slice().reverse().forEach((c, i) => { rankOf[c] = i + 1; });
     const lc = RC;
-    const dots = ['H', 'F', 'S', 'B'].map((co) => {
+    const dots = ['R', 'H', 'F', 'S', 'B'].map((co) => {
       const v = series[co][ci];
       const sz = co === 'B' ? 14 : 11;
       return { style: 'position: absolute; width: ' + sz + 'px; height: ' + sz + 'px; border-radius: 50%; background: #07120E; border: 2px solid ' + RC[co] + '; box-sizing: border-box; box-shadow: none; left: ' + xPct(ci) + '%; top: ' + (v ? yPct(v) : 50) + '%; transform: translate(-50%, -50%); opacity: ' + (v ? 1 : 0) + '; pointer-events: none; transition: left .5s cubic-bezier(.2,.8,.2,1), top .5s cubic-bezier(.2,.8,.2,1), opacity .2s' };
@@ -646,7 +650,7 @@ class Component extends DCLogic {
       return hit ? all[hit] : null;
     };
     const svOf = (co) => co === 'B' ? (our ? SV.B[our.id] : null) : (chosen[co] ? (chosen[co].r.svc || staticSvc(co, chosen[co].r)) : null);
-    const sv = { B: svOf('B'), S: svOf('S'), F: svOf('F'), H: svOf('H') };
+    const sv = { B: svOf('B'), S: svOf('S'), F: svOf('F'), H: svOf('H'), R: svOf('R') };
     const cellBox = (co) => 'padding: 11px 6px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; text-align: center; border-left: 1px solid #E6DEC8; background: linear-gradient(180deg, #FCF2CB, #F8E7A9)';
     const T1 = 'font-size: 12px; font-weight: 600; line-height: 1.25; color: #1D2C26';
     const mk2 = (co, ok, t1, t2) => ({ box: cellBox(co), isOk: ok === true, isNo: ok === false, t1, t1Style: T1 + (t1 === '—' ? '; color: #A7AFA9; font-weight: 500' : ''), t2: t2 || '' });

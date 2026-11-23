@@ -30,7 +30,7 @@ from .sync import sync_packets
 log = logging.getLogger("collector")
 
 MAX_BYTES = 20 * 1024 * 1024
-KINDS = {"mandarin": "mandarin_json", "safo": "safo_supabase", "etihad": "etihad_showroom", "hikmat": "hikmat_html", "umra_uz_etihad": "umra_uz_etihad", "umra_uz_safo": "umra_uz_safo"}
+KINDS = {"mandarin": "mandarin_json", "safo": "safo_supabase", "etihad": "etihad_showroom", "hikmat": "hikmat_html", "umra_uz_etihad": "umra_uz_etihad", "umra_uz_safo": "umra_uz_safo", "umra_uz_real_dreams": "umra_uz_real_dreams"}
 
 
 # ------------------------------------------------------------------ fetching
@@ -77,7 +77,7 @@ def fetch_hikmat_pages(site_url: str) -> tuple[str, str]:
     raise RuntimeError(f"cannot fetch hikmat pages: {type(last).__name__}")
 
 
-def fetch_umra_uz_pages(site_url: str) -> tuple[str, str]:
+def fetch_umra_uz_pages(site_url: str) -> tuple[str, str, str]:
     last: Exception | None = None
     for attempt in range(3):
         try:
@@ -158,16 +158,23 @@ def run_etihad(store, url: str, api_key: str) -> None:
 
 def run_umra_uz_etihad(store, site_url: str) -> None:
     def produce(_source):
-        etihad_html, _safo_html = fetch_umra_uz_pages(site_url)
+        etihad_html, _safo_html, _real_dreams_html = fetch_umra_uz_pages(site_url)
         return umra_uz.parse_page(etihad_html, "etihad"), None
     _execute(store, KINDS["umra_uz_etihad"], produce)
 
 
 def run_umra_uz_safo(store, site_url: str) -> None:
     def produce(_source):
-        _etihad_html, safo_html = fetch_umra_uz_pages(site_url)
+        _etihad_html, safo_html, _real_dreams_html = fetch_umra_uz_pages(site_url)
         return umra_uz.parse_page(safo_html, "safar travel"), None
     _execute(store, KINDS["umra_uz_safo"], produce)
+
+
+def run_umra_uz_real_dreams(store, site_url: str) -> None:
+    def produce(_source):
+        _etihad_html, _safo_html, real_dreams_html = fetch_umra_uz_pages(site_url)
+        return umra_uz.parse_page(real_dreams_html, "real dreams"), None
+    _execute(store, KINDS["umra_uz_real_dreams"], produce)
 
 
 # ------------------------------------------------------------------ dry runs
@@ -202,11 +209,13 @@ def dry_run_etihad(url: str, api_key: str) -> None:
 
 
 def dry_run_umra_uz(site_url: str) -> None:
-    etihad_html, safo_html = fetch_umra_uz_pages(site_url)
+    etihad_html, safo_html, real_dreams_html = fetch_umra_uz_pages(site_url)
     print("== umra_uz / etihad")
     _summary(umra_uz.parse_page(etihad_html, "etihad"))
     print("== umra_uz / safar travel")
     _summary(umra_uz.parse_page(safo_html, "safar travel"))
+    print("== umra_uz / real dreams")
+    _summary(umra_uz.parse_page(real_dreams_html, "real dreams"))
 
 
 def _need_env(name: str) -> str | None:
@@ -218,7 +227,7 @@ def _need_env(name: str) -> str | None:
 
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--source", choices=["mandarin", "safo", "etihad", "hikmat", "umra_uz_etihad", "umra_uz_safo", "all"], default="mandarin")
+    ap.add_argument("--source", choices=["mandarin", "safo", "etihad", "hikmat", "umra_uz_etihad", "umra_uz_safo", "umra_uz_real_dreams", "all"], default="mandarin")
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--loop", action="store_true")
     ap.add_argument("--notify", action="store_true", help="after each run, send new events to Telegram")
@@ -234,13 +243,15 @@ def main(argv=None) -> int:
         if os.environ.get("UMRA_UZ_URL"):
             names.append("umra_uz_etihad")
             names.append("umra_uz_safo")
+            names.append("umra_uz_real_dreams")
         else:
             log.warning("UMRA_UZ_URL is not set: umra.uz is skipped")
 
     urls = {}
     for n in names:
         urls[n] = _need_env({"mandarin": "MANDARIN_URL", "safo": "SAFO_SITE_URL", "etihad": "ETIHAD_API_URL",
-                                "hikmat": "HIKMAT_SITE_URL", "umra_uz_etihad": "UMRA_UZ_URL", "umra_uz_safo": "UMRA_UZ_URL"}[n])
+                                "hikmat": "HIKMAT_SITE_URL", "umra_uz_etihad": "UMRA_UZ_URL", "umra_uz_safo": "UMRA_UZ_URL",
+                                "umra_uz_real_dreams": "UMRA_UZ_URL"}[n])
         if not urls[n]:
             return 2
 
@@ -260,7 +271,7 @@ def main(argv=None) -> int:
                     dry_run_safo(urls[n])
                 elif n == "hikmat":
                     dry_run_hikmat(urls[n])
-                elif n in ("umra_uz_etihad", "umra_uz_safo"):
+                elif n in ("umra_uz_etihad", "umra_uz_safo", "umra_uz_real_dreams"):
                     dry_run_umra_uz(urls[n])
                 else:
                     dry_run_etihad(urls[n], api_key)
@@ -286,6 +297,8 @@ def main(argv=None) -> int:
                 run_umra_uz_etihad(store, urls[n])
             elif n == "umra_uz_safo":
                 run_umra_uz_safo(store, urls[n])
+            elif n == "umra_uz_real_dreams":
+                run_umra_uz_real_dreams(store, urls[n])
             else:
                 run_etihad(store, urls[n], api_key)
         if args.notify:
