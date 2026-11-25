@@ -143,3 +143,23 @@ def test_healthcheck_ignores_hikmat_when_its_url_is_not_set(monkeypatch):
     assert healthcheck.main() == 0                       # not configured: skipped
     monkeypatch.setenv("HIKMAT_SITE_URL", "https://h.example")
     assert healthcheck.main() == 1                       # configured but never succeeded: unhealthy
+
+
+# ---- the umra.uz and Safar Travel sources are optional too
+def test_healthcheck_ignores_umra_uz_and_safar_travel_when_not_configured(monkeypatch):
+    from collector import healthcheck
+    rows = [{"company_id": "B", "kind": "umra_uz_etihad", "enabled": True, "interval_min": 30, "last_ok_at": None},
+            {"company_id": "S", "kind": "umra_uz_safo", "enabled": True, "interval_min": 30, "last_ok_at": None},
+            {"company_id": "T", "kind": "safar_travel_api", "enabled": True, "interval_min": 30, "last_ok_at": None}]
+    for name in ("UMRA_UZ_URL", "SAFAR_TRAVEL_API_URL"):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("SUPABASE_URL", "https://x.example")
+    monkeypatch.setenv("SUPABASE_SERVICE_ROLE_KEY", "k")
+
+    class R:
+        def raise_for_status(self): pass
+        def json(self): return rows
+    monkeypatch.setattr(healthcheck.requests, "get", lambda *a, **k: R())
+    assert healthcheck.main() == 0
+    monkeypatch.setenv("SAFAR_TRAVEL_API_URL", "https://t.example")
+    assert healthcheck.main() == 1

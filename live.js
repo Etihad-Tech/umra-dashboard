@@ -19,7 +19,7 @@
   var REFRESH_MS = 5 * 60 * 1000;
   var TASHKENT_MS = 5 * 3600 * 1000;     // Asia/Tashkent is UTC+5 all year round
   var TIER_LABEL = { premium: 'Premium', lux: 'Lux', comfort: 'Comfort', econom: 'Comfort' };
-  var NAMES = { B: 'ETIHAD', S: 'SAFO', F: 'MANDARIN', H: 'HIKMAT' };
+  var NAMES = { B: 'ETIHAD', S: 'SAFO', F: 'MANDARIN', H: 'HIKMAT', T: 'SAFAR TRAVEL' };
   var DOWN_AFTER = 3;                    // same number as the collector's source_down alert
   var WEEKDAYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
   var SERVICES_KEY = 'package_services';
@@ -42,7 +42,7 @@
   function normSvc(v) {
     var out = { B: {}, S: {}, F: {} };
     if (!v || typeof v !== 'object') return out;
-    ['B', 'S', 'F', 'H'].forEach(function (co) { if (v[co] && typeof v[co] === 'object' && !Array.isArray(v[co])) out[co] = v[co]; });
+    ['B', 'S', 'F', 'H', 'T'].forEach(function (co) { if (v[co] && typeof v[co] === 'object' && !Array.isArray(v[co])) out[co] = v[co]; });
     return out;
   }
 
