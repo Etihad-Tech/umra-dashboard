@@ -1,4 +1,4 @@
-"""Entry point:  python -m collector.run [--source mandarin|safo|etihad|hikmat|all] [--dry-run] [--loop]
+"""Entry point:  python -m collector.run [--source mandarin|safo|etihad|hikmat|safar_travel|all] [--dry-run] [--loop]
 
 --dry-run   fetch + parse and print a summary. No database, no Supabase key needed.
 --loop      repeat forever every sources.interval_min minutes (a server may use cron instead).
@@ -7,7 +7,10 @@ Competitor addresses are NOT kept in this public repository; set them in the env
     MANDARIN_URL   full URL of the Mandarin JSON feed
     SAFO_SITE_URL  address of the Safo public site
     HIKMAT_SITE_URL  address of the Hikmat Umra public site (optional: "all" skips Hikmat when it is not set)
+    UMRA_UZ_URL  address of umra.uz marketplace (optional: "all" skips when not set)
     ETIHAD_API_URL / ETIHAD_API_KEY  our partner API (the key is sent in the X-Api-Key header, never in the URL)
+    SAFAR_TRAVEL_API_URL / SAFAR_TRAVEL_USER / SAFAR_TRAVEL_PASS  our own agent login to Safar Travel's
+        dashboard API (dashboard.safartravel.uz), sent as HTTP Basic Auth
 """
 from __future__ import annotations
 
@@ -22,7 +25,7 @@ from datetime import date
 
 import requests
 
-from . import etihad, hikmat, notify, safo
+from . import etihad, hikmat, notify, safar_travel, safo, umra_uz
 from .clock import today_tashkent
 from .db import RestStore
 from .mandarin import SchemaError, parse_feed
@@ -31,7 +34,8 @@ from .sync import sync_packets
 log = logging.getLogger("collector")
 
 MAX_BYTES = 20 * 1024 * 1024
-KINDS = {"mandarin": "mandarin_json", "safo": "safo_supabase", "etihad": "etihad_showroom", "hikmat": "hikmat_html"}
+KINDS = {"mandarin": "mandarin_json", "safo": "safo_supabase", "etihad": "etihad_showroom", "hikmat": "hikmat_html",
+         "umra_uz_etihad": "umra_uz_etihad", "umra_uz_safo": "umra_uz_safo", "safar_travel": "safar_travel_api"}
 
 
 # ------------------------------------------------------------------ fetching
@@ -76,6 +80,32 @@ def fetch_hikmat_pages(site_url: str) -> tuple[str, str]:
             last = e
             time.sleep(2 ** attempt)
     raise RuntimeError(f"cannot fetch hikmat pages: {type(last).__name__}")
+
+
+def fetch_safar_travel_rows(api_url: str, user: str, password: str) -> list:
+    last: Exception | None = None
+    for attempt in range(3):
+        try:
+            return safar_travel.fetch_rows(api_url, user, password)
+        except SchemaError:
+            raise
+        except (requests.RequestException, ValueError) as e:
+            last = e
+            time.sleep(2 ** attempt)
+    raise RuntimeError(f"cannot fetch safar_travel rows: {type(last).__name__}")
+
+
+def fetch_umra_uz_pages(site_url: str) -> tuple[str, str]:
+    last: Exception | None = None
+    for attempt in range(3):
+        try:
+            return umra_uz.fetch_pages(site_url)
+        except SchemaError:
+            raise          # 403/429 → stop immediately, do not retry
+        except (requests.RequestException, ValueError) as e:
+            last = e
+            time.sleep(2 ** attempt)
+    raise RuntimeError(f"cannot fetch umra_uz pages: {type(last).__name__}")
 
 
 # --------------------------------------------------------------------- runs
@@ -143,6 +173,16 @@ def run_hikmat(store, site_url: str, today: date | None = None) -> None:
     _execute(store, KINDS["hikmat"], produce, day)
 
 
+def run_safar_travel(store, api_url: str, user: str, password: str, city: str | None = None,
+                     today: date | None = None) -> None:
+    day = today or today_tashkent()
+
+    def produce(_source):
+        rows = fetch_safar_travel_rows(api_url, user, password)
+        return safar_travel.parse_rows(rows, (city or "TOSHKENT").upper(), day), None
+    _execute(store, KINDS["safar_travel"], produce, day)
+
+
 def run_etihad(store, url: str, api_key: str, today: date | None = None) -> None:
     def produce(_source):
         return etihad.parse_packages(fetch_feed(url, headers={"X-Api-Key": api_key})), None
@@ -157,7 +197,12 @@ def run_cycle(store, names: list[str], urls: dict, api_key: str | None = None, c
     runners = {"mandarin": lambda: run_once(store, urls["mandarin"], city),
                "safo": lambda: run_safo(store, urls["safo"]),
                "etihad": lambda: run_etihad(store, urls["etihad"], api_key),
-               "hikmat": lambda: run_hikmat(store, urls["hikmat"])}
+               "hikmat": lambda: run_hikmat(store, urls["hikmat"]),
+               "umra_uz_etihad": lambda: run_umra_uz_etihad(store, urls["umra_uz_etihad"]),
+               "umra_uz_safo": lambda: run_umra_uz_safo(store, urls["umra_uz_safo"]),
+               "safar_travel": lambda: run_safar_travel(store, urls["safar_travel"],
+                                                        os.environ["SAFAR_TRAVEL_USER"],
+                                                        os.environ["SAFAR_TRAVEL_PASS"], city)}
     for n in names:
         try:
             runners[n]()
@@ -168,6 +213,20 @@ def run_cycle(store, names: list[str], urls: dict, api_key: str | None = None, c
             notify.run_from_env(store)
         except Exception as e:  # noqa: BLE001
             log.error("notify: pass aborted: %s", type(e).__name__)
+
+
+def run_umra_uz_etihad(store, site_url: str) -> None:
+    def produce(_source):
+        etihad_html, _safo_html = fetch_umra_uz_pages(site_url)
+        return umra_uz.parse_page(etihad_html, "etihad"), None
+    _execute(store, KINDS["umra_uz_etihad"], produce)
+
+
+def run_umra_uz_safo(store, site_url: str) -> None:
+    def produce(_source):
+        _etihad_html, safo_html = fetch_umra_uz_pages(site_url)
+        return umra_uz.parse_page(safo_html, "safar travel"), None
+    _execute(store, KINDS["umra_uz_safo"], produce)
 
 
 # ------------------------------------------------------------------ dry runs
@@ -197,8 +256,22 @@ def dry_run_hikmat(site_url: str) -> None:
     _summary(hikmat.parse_pages(prices_html, dates_html, today_tashkent()))
 
 
+def dry_run_safar_travel(api_url: str, user: str, password: str, city: str) -> None:
+    rows = fetch_safar_travel_rows(api_url, user, password)
+    print("rows in feed:", len(rows))
+    _summary(safar_travel.parse_rows(rows, city.upper(), date.today()))
+
+
 def dry_run_etihad(url: str, api_key: str) -> None:
     _summary(etihad.parse_packages(fetch_feed(url, headers={"X-Api-Key": api_key})))
+
+
+def dry_run_umra_uz(site_url: str) -> None:
+    etihad_html, safo_html = fetch_umra_uz_pages(site_url)
+    print("== umra_uz / etihad")
+    _summary(umra_uz.parse_page(etihad_html, "etihad"))
+    print("== umra_uz / safar travel")
+    _summary(umra_uz.parse_page(safo_html, "safar travel"))
 
 
 def _need_env(name: str) -> str | None:
@@ -210,11 +283,13 @@ def _need_env(name: str) -> str | None:
 
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--source", choices=["mandarin", "safo", "etihad", "hikmat", "all"], default="mandarin")
+    ap.add_argument("--source", choices=["mandarin", "safo", "etihad", "hikmat", "umra_uz_etihad", "umra_uz_safo",
+                                          "safar_travel", "all"], default="mandarin")
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--loop", action="store_true")
     ap.add_argument("--notify", action="store_true", help="after each run, send new events to Telegram")
-    ap.add_argument("--city", help="Mandarin only: override departure city (default: sources.config, else TOSHKENT)")
+    ap.add_argument("--city", help="Mandarin / Safar Travel only: override departure city "
+                                    "(default: sources.config, else TOSHKENT)")
     args = ap.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     names = ["mandarin", "safo", "etihad"] if args.source == "all" else [args.source]
@@ -223,11 +298,21 @@ def main(argv=None) -> int:
             names.append("hikmat")
         else:
             log.warning("HIKMAT_SITE_URL is not set: Hikmat is skipped")
+        if os.environ.get("UMRA_UZ_URL"):
+            names.append("umra_uz_etihad")
+            names.append("umra_uz_safo")
+        else:
+            log.warning("UMRA_UZ_URL is not set: umra.uz is skipped")
+        if os.environ.get("SAFAR_TRAVEL_API_URL"):
+            names.append("safar_travel")
+        else:
+            log.warning("SAFAR_TRAVEL_API_URL is not set: Safar Travel is skipped")
 
     urls = {}
     for n in names:
         urls[n] = _need_env({"mandarin": "MANDARIN_URL", "safo": "SAFO_SITE_URL", "etihad": "ETIHAD_API_URL",
-                                "hikmat": "HIKMAT_SITE_URL"}[n])
+                                "hikmat": "HIKMAT_SITE_URL", "umra_uz_etihad": "UMRA_UZ_URL", "umra_uz_safo": "UMRA_UZ_URL",
+                                "safar_travel": "SAFAR_TRAVEL_API_URL"}[n])
         if not urls[n]:
             return 2
 
@@ -235,6 +320,12 @@ def main(argv=None) -> int:
     if "etihad" in names:
         api_key = _need_env("ETIHAD_API_KEY")
         if not api_key:
+            return 2
+
+    safar_user = safar_pass = None
+    if "safar_travel" in names:
+        safar_user, safar_pass = _need_env("SAFAR_TRAVEL_USER"), _need_env("SAFAR_TRAVEL_PASS")
+        if not safar_user or not safar_pass:
             return 2
 
     if args.dry_run:
@@ -247,6 +338,10 @@ def main(argv=None) -> int:
                     dry_run_safo(urls[n])
                 elif n == "hikmat":
                     dry_run_hikmat(urls[n])
+                elif n in ("umra_uz_etihad", "umra_uz_safo"):
+                    dry_run_umra_uz(urls[n])
+                elif n == "safar_travel":
+                    dry_run_safar_travel(urls[n], safar_user, safar_pass, args.city or "TOSHKENT")
                 else:
                     dry_run_etihad(urls[n], api_key)
             except Exception as e:  # noqa: BLE001

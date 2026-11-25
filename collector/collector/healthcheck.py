@@ -16,7 +16,7 @@ from datetime import datetime, timedelta, timezone
 
 import requests
 
-NAMES = {"B": "ETIHAD", "S": "SAFO", "F": "MANDARIN", "H": "HIKMAT"}
+NAMES = {"B": "ETIHAD", "S": "SAFO", "F": "MANDARIN", "H": "HIKMAT", "T": "SAFAR TRAVEL"}
 
 
 def stale_sources(rows: list[dict], now: datetime) -> list[str]:
@@ -54,8 +54,10 @@ def main() -> int:
     if not rows:
         print("no sources configured", file=sys.stderr)
         return 1
-    if not os.environ.get("HIKMAT_SITE_URL"):          # a source this collector is not set up to run is not "stale"
-        rows = [r for r in rows if r.get("kind") != "hikmat_html"]
+    # a source this collector is not set up to run is not "stale"
+    optional = {"hikmat_html": "HIKMAT_SITE_URL", "umra_uz_etihad": "UMRA_UZ_URL", "umra_uz_safo": "UMRA_UZ_URL",
+                "safar_travel_api": "SAFAR_TRAVEL_API_URL"}
+    rows = [r for r in rows if r.get("kind") not in optional or os.environ.get(optional[r["kind"]])]
     bad = stale_sources(rows, datetime.now(timezone.utc))
     for line in bad:
         print(line, file=sys.stderr)
